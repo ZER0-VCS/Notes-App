@@ -5,14 +5,16 @@
 
 import sys
 import logging
+from pathlib import Path
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QListWidget, QListWidgetItem, QLineEdit, QTextEdit, QPushButton,
-    QSplitter, QMessageBox, QLabel
+    QSplitter, QMessageBox, QLabel, QFileDialog
 )
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont, QShortcut, QKeySequence
 from notes import Note, NoteStore
+from sync import SyncManager
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +40,10 @@ class NotesApp(QMainWindow):
             sys.exit(1)
         
         self.current_note_id = None
+        
+        # Инициализация менеджера синхронизации
+        self.sync_manager = SyncManager(self.store)
+        logger.info("Менеджер синхронизации инициализирован")
         
         # Настройка окна
         self.setWindowTitle("Заметки")
@@ -174,6 +180,24 @@ class NotesApp(QMainWindow):
         buttons_layout.addWidget(self.btn_delete)
         
         buttons_layout.addStretch()
+        
+        # Кнопка синхронизации
+        self.btn_sync = QPushButton("🔄 Синхронизировать")
+        self.btn_sync.clicked.connect(self.sync_notes)
+        self.btn_sync.setStyleSheet("""
+            QPushButton {
+                background-color: #FF9800;
+                color: white;
+                border: none;
+                padding: 10px 20px;
+                font-size: 14px;
+                border-radius: 5px;
+            }
+            QPushButton:hover {
+                background-color: #F57C00;
+            }
+        """)
+        buttons_layout.addWidget(self.btn_sync)
         
         # Статусная метка
         self.status_label = QLabel("")
@@ -421,6 +445,103 @@ class NotesApp(QMainWindow):
                 event.ignore()
         else:
             event.accept()
+    
+    def setup_sync_path(self):
+        """Настройка пути к облачной папке синхронизации."""
+        folder = QFileDialog.getExistingDirectory(
+            self,
+            "Выберите папку облачной синхронизации",
+            str(Path.home()),
+            QFileDialog.ShowDirsOnly
+        )
+        
+        if folder:
+            path = Path(folder)
+            if self.sync_manager.set_cloud_path(path):
+                self.update_status(f"Папка синхронизации: {path.name}")
+                logger.info("Настроена папка синхронизации: %s", path)
+                return True
+            else:
+                QMessageBox.warning(
+                    self,
+                    "Ошибка",
+                    "Не удалось установить папку синхронизации"
+                )
+                return False
+        return False
+    
+    def sync_notes(self):
+        """Выполнение синхронизации заметок."""
+        # Проверка настройки облачной папки
+        if not self.sync_manager.cloud_path:
+            reply = QMessageBox.question(
+                self,
+                "Настройка синхронизации",
+                "Папка облачной синхронизации не настроена.\nХотите выбрать папку?",
+                QMessageBox.Yes | QMessageBox.No
+            )
+            
+            if reply == QMessageBox.Yes:
+                if not self.setup_sync_path():
+                    return
+            else:
+                return
+        
+        # Сохраняем текущую заметку перед синхронизацией
+        if self.has_unsaved_changes and self.current_note_id:
+            self.save_current_note()
+        
+        try:
+            self.update_status("Синхронизация...")
+            self.btn_sync.setEnabled(False)
+            logger.info("Начало синхронизации")
+            
+            # Выполняем синхронизацию
+            success, synced_count, conflict_count = self.sync_manager.sync()
+            
+            if success:
+                # Обновляем список заметок
+                self.load_notes_list()
+                
+                # Сообщение о результате
+                if conflict_count > 0:
+                    msg = f"Синхронизировано: {synced_count} заметок\n⚠️ Обнаружено конфликтов: {conflict_count}"
+                    self.update_status(f"Синхронизация: {synced_count} заметок, {conflict_count} конфликтов")
+                    QMessageBox.warning(
+                        self,
+                        "Синхронизация завершена",
+                        msg + "\n\nЗаметки с конфликтами помечены префиксом ⚠️"
+                    )
+                else:
+                    self.update_status(f"Синхронизировано: {synced_count} заметок")
+                    QMessageBox.information(
+                        self,
+                        "Синхронизация завершена",
+                        f"Успешно синхронизировано {synced_count} заметок"
+                    )
+                
+                logger.info("Синхронизация успешна: %d заметок, %d конфликтов", 
+                           synced_count, conflict_count)
+            else:
+                self.update_status("Ошибка синхронизации")
+                QMessageBox.critical(
+                    self,
+                    "Ошибка синхронизации",
+                    "Не удалось выполнить синхронизацию.\nПроверьте логи для деталей."
+                )
+                logger.error("Синхронизация не удалась")
+        
+        except Exception as e:
+            logger.error("Ошибка при синхронизации: %s", e)
+            self.update_status("Ошибка синхронизации")
+            QMessageBox.critical(
+                self,
+                "Ошибка",
+                f"Произошла ошибка при синхронизации:\n{e}"
+            )
+        
+        finally:
+            self.btn_sync.setEnabled(True)
 
 
 def main():
