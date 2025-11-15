@@ -28,8 +28,13 @@ desktop.ini
 
 # Логи
 *.log
+notes_app.log
 
 # Временные файлы
 *.tmp
 *.bak
 *.swp
+
+# Резервные копии
+backups/
+*.backup

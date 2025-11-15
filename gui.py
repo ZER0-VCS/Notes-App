@@ -4,14 +4,17 @@
 """
 
 import sys
+import logging
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QListWidget, QListWidgetItem, QLineEdit, QTextEdit, QPushButton,
     QSplitter, QMessageBox, QLabel
 )
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QShortcut, QKeySequence
 from notes import Note, NoteStore
+
+logger = logging.getLogger(__name__)
 
 
 class NotesApp(QMainWindow):
@@ -23,7 +26,17 @@ class NotesApp(QMainWindow):
         super().__init__()
         
         # Инициализация хранилища заметок
-        self.store = NoteStore()
+        try:
+            self.store = NoteStore()
+        except Exception as e:
+            logger.error("Ошибка при инициализации хранилища: %s", e)
+            QMessageBox.critical(
+                self,
+                "Ошибка",
+                f"Не удалось инициализировать хранилище заметок:\n{e}"
+            )
+            sys.exit(1)
+        
         self.current_note_id = None
         
         # Настройка окна
@@ -32,6 +45,9 @@ class NotesApp(QMainWindow):
         
         # Создание интерфейса
         self.init_ui()
+        
+        # Настройка горячих клавиш
+        self.setup_shortcuts()
         
         # Загрузка заметок
         self.load_notes_list()
@@ -176,7 +192,21 @@ class NotesApp(QMainWindow):
         
         # Флаг изменений
         self.has_unsaved_changes = False
+    
+    def setup_shortcuts(self):
+        """Настройка горячих клавиш."""
+        # Ctrl+S - Сохранить
+        QShortcut(QKeySequence.Save, self).activated.connect(self.save_current_note)
+        logger.info("Горячая клавиша Ctrl+S настроена")
         
+        # Ctrl+N - Новая заметка
+        QShortcut(QKeySequence.New, self).activated.connect(self.create_new_note)
+        logger.info("Горячая клавиша Ctrl+N настроена")
+        
+        # Ctrl+D - Удалить
+        QShortcut(QKeySequence("Ctrl+D"), self).activated.connect(self.delete_current_note)
+        logger.info("Горячая клавиша Ctrl+D настроена")
+    
     def load_notes_list(self):
         """Загрузка списка заметок в QListWidget."""
         self.notes_list.clear()
@@ -254,49 +284,71 @@ class NotesApp(QMainWindow):
             elif reply == QMessageBox.Cancel:
                 return
         
-        # Создаем новую заметку
-        new_note = Note(title="Новая заметка", body="")
-        self.store.add_note(new_note)
+        try:
+            # Создаем новую заметку
+            new_note = Note(title="Новая заметка", body="")
+            self.store.add_note(new_note)
+            logger.info("Создана новая заметка: %s", new_note.id[:8])
+            
+            # Обновляем список
+            self.load_notes_list()
+            
+            # Загружаем новую заметку в редактор
+            self.load_note(new_note.id)
+            
+            # Ставим фокус на заголовок
+            self.title_edit.selectAll()
+            self.title_edit.setFocus()
+            
+            self.update_status("Создана новая заметка")
         
-        # Обновляем список
-        self.load_notes_list()
-        
-        # Загружаем новую заметку в редактор
-        self.load_note(new_note.id)
-        
-        # Ставим фокус на заголовок
-        self.title_edit.selectAll()
-        self.title_edit.setFocus()
-        
-        self.update_status("Создана новая заметка")
+        except Exception as e:
+            logger.error("Ошибка при создании заметки: %s", e)
+            QMessageBox.critical(
+                self,
+                "Ошибка",
+                f"Не удалось создать заметку:\n{e}"
+            )
     
     def save_current_note(self):
         """Сохранение текущей заметки."""
         if not self.current_note_id:
+            logger.warning("Попытка сохранить, но заметка не выбрана")
             return
         
-        title = self.title_edit.text()
-        body = self.body_edit.toPlainText()
-        
-        # Обновляем заметку
-        success = self.store.update_note(self.current_note_id, title=title, body=body)
-        
-        if success:
-            self.has_unsaved_changes = False
-            self.btn_save.setEnabled(False)
-            self.load_notes_list()
-            self.update_status("Заметка сохранена")
+        try:
+            title = self.title_edit.text()
+            body = self.body_edit.toPlainText()
             
-            # Автоматически выбираем обновленную заметку в списке
-            for i in range(self.notes_list.count()):
-                item = self.notes_list.item(i)
-                if item.data(Qt.UserRole) == self.current_note_id:
-                    self.notes_list.setCurrentItem(item)
-                    break
+            # Обновляем заметку
+            success = self.store.update_note(self.current_note_id, title=title, body=body)
+            
+            if success:
+                self.has_unsaved_changes = False
+                self.btn_save.setEnabled(False)
+                self.load_notes_list()
+                self.update_status("Заметка сохранена")
+                logger.info("Заметка сохранена: %s", self.current_note_id[:8])
+                
+                # Автоматически выбираем обновленную заметку в списке
+                for i in range(self.notes_list.count()):
+                    item = self.notes_list.item(i)
+                    if item.data(Qt.UserRole) == self.current_note_id:
+                        self.notes_list.setCurrentItem(item)
+                        break
+        
+        except Exception as e:
+            logger.error("Ошибка при сохранении заметки: %s", e)
+            QMessageBox.critical(
+                self,
+                "Ошибка сохранения",
+                f"Не удалось сохранить заметку:\n{e}"
+            )
     
     def delete_current_note(self):
         """Удаление текущей заметки."""
         if not self.current_note_id:
+            logger.warning("Попытка удалить, но заметка не выбрана")
             return
         
         # Подтверждение удаления
@@ -308,22 +360,33 @@ class NotesApp(QMainWindow):
         )
         
         if reply == QMessageBox.Yes:
-            note_title = self.title_edit.text() or "(Без заголовка)"
-            success = self.store.delete_note(self.current_note_id)
+            try:
+                note_title = self.title_edit.text() or "(Без заголовка)"
+                note_id = self.current_note_id
+                success = self.store.delete_note(self.current_note_id)
+                
+                if success:
+                    self.update_status(f"Заметка удалена: {note_title}")
+                    logger.info("Заметка удалена: %s", note_id[:8])
+                    
+                    # Очищаем редактор
+                    self.current_note_id = None
+                    self.title_edit.clear()
+                    self.body_edit.clear()
+                    self.btn_save.setEnabled(False)
+                    self.btn_delete.setEnabled(False)
+                    self.has_unsaved_changes = False
+                    
+                    # Обновляем список
+                    self.load_notes_list()
             
-            if success:
-                self.update_status(f"Заметка удалена: {note_title}")
-                
-                # Очищаем редактор
-                self.current_note_id = None
-                self.title_edit.clear()
-                self.body_edit.clear()
-                self.btn_save.setEnabled(False)
-                self.btn_delete.setEnabled(False)
-                self.has_unsaved_changes = False
-                
-                # Обновляем список
-                self.load_notes_list()
+            except Exception as e:
+                logger.error("Ошибка при удалении заметки: %s", e)
+                QMessageBox.critical(
+                    self,
+                    "Ошибка удаления",
+                    f"Не удалось удалить заметку:\n{e}"
+                )
     
     def on_text_changed(self):
         """Обработчик изменения текста в редакторе."""
