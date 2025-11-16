@@ -170,7 +170,7 @@ class NotesApp(QMainWindow):
         left_layout.addWidget(self.notes_list)
         
         # Кнопка "Создать новую заметку"
-        self.btn_new = QPushButton("➕ Создать заметку")
+        self.btn_new = QPushButton("Создать заметку")
         self.btn_new.clicked.connect(self.create_new_note)
         self.btn_new.setStyleSheet("""
             QPushButton {
@@ -232,7 +232,7 @@ class NotesApp(QMainWindow):
         # Панель кнопок
         buttons_layout = QHBoxLayout()
         
-        self.btn_save = QPushButton("💾 Сохранить")
+        self.btn_save = QPushButton("Сохранить")
         self.btn_save.clicked.connect(self.save_current_note)
         self.btn_save.setEnabled(False)
         self.btn_save.setStyleSheet("""
@@ -254,7 +254,7 @@ class NotesApp(QMainWindow):
         """)
         buttons_layout.addWidget(self.btn_save)
         
-        self.btn_pin = QPushButton("📌 Закрепить")
+        self.btn_pin = QPushButton("Закрепить")
         self.btn_pin.clicked.connect(self.toggle_pin)
         self.btn_pin.setEnabled(False)
         self.btn_pin.setStyleSheet("""
@@ -276,7 +276,7 @@ class NotesApp(QMainWindow):
         """)
         buttons_layout.addWidget(self.btn_pin)
         
-        self.btn_delete = QPushButton("🗑️ Удалить")
+        self.btn_delete = QPushButton("Удалить")
         self.btn_delete.clicked.connect(self.delete_current_note)
         self.btn_delete.setEnabled(False)
         self.btn_delete.setStyleSheet("""
@@ -301,7 +301,7 @@ class NotesApp(QMainWindow):
         buttons_layout.addStretch()
         
         # Кнопка синхронизации
-        self.btn_sync = QPushButton("🔄 Синхронизировать")
+        self.btn_sync = QPushButton("Синхронизировать")
         self.btn_sync.clicked.connect(self.sync_notes)
         self.btn_sync.setStyleSheet("""
             QPushButton {
@@ -1157,9 +1157,9 @@ class NotesApp(QMainWindow):
             
             # Обновляем текст кнопки закрепления
             if note.pinned:
-                self.btn_pin.setText("📌 Открепить")
+                self.btn_pin.setText("Открепить")
             else:
-                self.btn_pin.setText("📌 Закрепить")
+                self.btn_pin.setText("Закрепить")
             
             self.has_unsaved_changes = False
             self.update_status(f"Заметка загружена: {note.title}")
@@ -1384,11 +1384,11 @@ class NotesApp(QMainWindow):
         
         # Обновляем UI
         if note.pinned:
-            self.btn_pin.setText("📌 Открепить")
+            self.btn_pin.setText("Открепить")
             self.update_status(f"Заметка закреплена: {note.title}")
             logger.info("Заметка закреплена: %s", self.current_note_id[:8])
         else:
-            self.btn_pin.setText("📌 Закрепить")
+            self.btn_pin.setText("Закрепить")
             self.update_status(f"Заметка откреплена: {note.title}")
             logger.info("Заметка откреплена: %s", self.current_note_id[:8])
         
@@ -1426,7 +1426,7 @@ class NotesApp(QMainWindow):
                 # Активируем кнопки
                 self.btn_delete.setEnabled(True)
                 self.btn_pin.setEnabled(True)
-                self.btn_pin.setText("📌 Закрепить")
+                self.btn_pin.setText("Закрепить")
                 
                 logger.info("Автоматически создана новая заметка: %s", new_note.id[:8])
                 self.update_status("Создана новая заметка")

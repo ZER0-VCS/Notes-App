@@ -134,7 +134,7 @@ class NotesApp(QMainWindow):
         left_layout.addWidget(self.notes_list)
         
         # Кнопка "Создать новую заметку"
-        self.btn_new = QPushButton("➕ Создать заметку")
+        self.btn_new = QPushButton("Создать заметку")
         self.btn_new.clicked.connect(self.create_new_note)
         self.btn_new.setStyleSheet("""
             QPushButton {
@@ -196,7 +196,7 @@ class NotesApp(QMainWindow):
         # Панель кнопок
         buttons_layout = QHBoxLayout()
         
-        self.btn_save = QPushButton("💾 Сохранить")
+        self.btn_save = QPushButton("Сохранить")
         self.btn_save.clicked.connect(self.save_current_note)
         self.btn_save.setEnabled(False)
         self.btn_save.setStyleSheet("""
@@ -218,7 +218,7 @@ class NotesApp(QMainWindow):
         """)
         buttons_layout.addWidget(self.btn_save)
         
-        self.btn_delete = QPushButton("🗑️ Удалить")
+        self.btn_delete = QPushButton("Удалить")
         self.btn_delete.clicked.connect(self.delete_current_note)
         self.btn_delete.setEnabled(False)
         self.btn_delete.setStyleSheet("""
@@ -243,7 +243,7 @@ class NotesApp(QMainWindow):
         buttons_layout.addStretch()
         
         # Кнопка синхронизации
-        self.btn_sync = QPushButton("🔄 Синхронизировать")
+        self.btn_sync = QPushButton("Синхронизировать")
         self.btn_sync.clicked.connect(self.sync_notes)
         self.btn_sync.setStyleSheet("""
             QPushButton {
