@@ -14,15 +14,9 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QTimer, Signal, QObject
 import threading
 from PySide6.QtGui import QFont, QShortcut, QKeySequence, QTextCharFormat, QColor, QTextCursor, QPalette
-
-try:
-    from notes import Note, NoteStore
-    from sync import SyncManager
-    from themes import theme_manager
-except ImportError:
-    from .notes import Note, NoteStore
-    from .sync import SyncManager
-    from .themes import theme_manager
+from notes import Note, NoteStore
+from sync import SyncManager
+from themes import theme_manager
 
 logger = logging.getLogger(__name__)
 
@@ -58,9 +52,9 @@ class NotesApp(QMainWindow):
         # Инициализация темы оформления
         self.theme_manager = theme_manager
         # Загружаем сохраненную тему
-        self.saved_theme = self._load_theme_config()
-        self.current_theme = self.theme_manager.get_theme(self.saved_theme)
-        logger.info(f"Загружена тема: {self.saved_theme}")
+        saved_theme = self._load_theme_config()
+        self.current_theme = self.theme_manager.get_theme(saved_theme)
+        logger.info(f"Загружена тема: {saved_theme}")
         
         # Инициализация менеджера синхронизации
         self.sync_manager = SyncManager(self.store)
@@ -89,17 +83,6 @@ class NotesApp(QMainWindow):
         
         # Создание меню
         self.create_menu_bar()
-        
-        # Применяем сохраненные настройки шрифта и темы
-        config_settings = self._load_config_settings()
-        font_family = config_settings.get('editor_font', 'Arial')
-        font_size = config_settings.get('editor_font_size', 11)
-        self.apply_editor_font(font_family, font_size)
-        logger.info(f"Применен сохраненный шрифт: {font_family}, размер {font_size}")
-        
-        # Применяем тему (уже загружена в __init__)
-        self.apply_theme_live(self.saved_theme)
-        logger.info(f"Применена сохраненная тема: {self.saved_theme}")
         
         # Загрузка заметок
         self.load_notes_list()
