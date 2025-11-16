@@ -78,9 +78,9 @@ class ThemeManager:
         list_selected="#0078D4",
         list_hover="#E5F3FF",
         
-        # Системный цвет выделения (синий на Windows)
-        search_highlight="palette(highlight)",
-        search_highlight_text="palette(highlighted-text)",
+        # Жёлтый цвет выделения при поиске
+        search_highlight="#FFEB3B",
+        search_highlight_text="#000000",
         
         status_text="#666666",
         
@@ -144,8 +144,9 @@ class ThemeManager:
         list_selected="#4682B4",
         list_hover="#D6E9FF",
         
-        search_highlight="palette(highlight)",
-        search_highlight_text="palette(highlighted-text)",
+        # Жёлтый цвет выделения при поиске
+        search_highlight="#FFEB3B",
+        search_highlight_text="#000000",
         
         status_text="#4682B4",
         
@@ -176,8 +177,9 @@ class ThemeManager:
         list_selected="#2E7D32",
         list_hover="#C8E6C9",
         
-        search_highlight="palette(highlight)",
-        search_highlight_text="palette(highlighted-text)",
+        # Жёлтый цвет выделения при поиске
+        search_highlight="#FFEB3B",
+        search_highlight_text="#000000",
         
         status_text="#2E7D32",
         
