@@ -28,7 +28,16 @@ Notes-App/
 │   └── NoteStore     # CRUD + JSON
 ├── gui.py            # GUI (PySide6)
 │   └── NotesApp      # Главное окно
-└── main.py           # Entry point
+├── sync.py           # Менеджер синхронизации
+│   └── SyncManager   # LWW алгоритм
+├── themes.py         # Система тем
+│   ├── Theme         # Dataclass темы
+│   └── ThemeManager  # Управление темами
+├── main.py           # Entry point
+└── tests/            # Все тесты
+    ├── test_search.py
+    ├── test_highlight_all_fields.py
+    └── ... (другие тесты)
 ```
 
 ## 🧪 Тестирование
@@ -67,7 +76,12 @@ logger.error("Ошибка")
 
 ## 📝 Следующие задачи
 
-См. раздел `[Unreleased]` в [CHANGELOG.md](CHANGELOG.md)
+### Версия 0.5.0 (Приоритет)
+- [ ] GUI выбора темы (Меню "Вид" → "Тема")
+- [ ] Диалог настроек приложения
+- [ ] Экспорт в Markdown/TXT/HTML
+
+См. подробный план в [ROADMAP.md](ROADMAP.md) и раздел `[Unreleased]` в [CHANGELOG.md](CHANGELOG.md)
 
 ## 🤝 Контрибьюция
 
