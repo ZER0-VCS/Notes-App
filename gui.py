@@ -442,7 +442,7 @@ class NotesApp(QMainWindow):
         
         # Создаём формат для подсветки
         highlight_format = QTextCharFormat()
-        highlight_format.setBackground(QColor(255, 255, 0))  # Желтый цвет
+        highlight_format.setBackground(QColor(255, 235, 59))  # Более темный желтый цвет
         
         # Ищем и подсвечиваем все вхождения (регистронезависимо)
         cursor = self.body_edit.textCursor()
@@ -476,6 +476,16 @@ class NotesApp(QMainWindow):
     
     def on_note_selected(self, item):
         """Обработчик выбора заметки из списка."""
+        # Проверяем, что item еще существует
+        if not item:
+            return
+        
+        try:
+            note_id = item.data(Qt.UserRole)
+        except RuntimeError:
+            # Item был удален
+            return
+        
         # Проверка несохраненных изменений
         if self.has_unsaved_changes:
             reply = QMessageBox.question(
@@ -491,7 +501,6 @@ class NotesApp(QMainWindow):
                 return
         
         # Загрузка выбранной заметки
-        note_id = item.data(Qt.UserRole)
         self.load_note(note_id)
     
     def load_note(self, note_id):
@@ -530,7 +539,10 @@ class NotesApp(QMainWindow):
             # Применяем подсветку текста, если есть активный поиск
             search_text = self.search_box.text().strip()
             if search_text:
+                # Блокируем сигналы при применении подсветки
+                self.body_edit.blockSignals(True)
                 self.highlight_text_in_body(search_text)
+                self.body_edit.blockSignals(False)
     
     def create_new_note(self):
         """Создание новой заметки."""
