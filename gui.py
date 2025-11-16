@@ -583,7 +583,7 @@ class NotesApp(QMainWindow):
     
     def apply_editor_font(self, font_family: str, font_size: int):
         """
-        Применить шрифт к редактору заметок.
+        Применить шрифт к редактору заметок и списку.
         
         Args:
             font_family: Название шрифта
@@ -597,6 +597,18 @@ class NotesApp(QMainWindow):
             # Применяем к полю текста
             body_font = QFont(font_family, font_size)
             self.body_edit.setFont(body_font)
+            
+            # Применяем к списку заметок
+            list_font = QFont(font_family, font_size)
+            self.notes_list.setFont(list_font)
+            
+            # Применяем к полю поиска
+            search_font = QFont(font_family, font_size - 1)
+            self.search_box.setFont(search_font)
+            
+            # Применяем к полю тегов
+            tags_font = QFont(font_family, font_size)
+            self.tags_edit.setFont(tags_font)
             
             logger.info(f"Шрифт применен: {font_family}, размер {font_size}")
         except Exception as e:
@@ -619,29 +631,34 @@ class NotesApp(QMainWindow):
             palette.setColor(self.foregroundRole(), QColor(theme.text))
             self.setPalette(palette)
             
-            # Обновляем стиль основного окна
+            # Обновляем стиль основного окна и всех элементов
             self.setStyleSheet(f"""
                 QWidget {{
                     background-color: {theme.background};
                     color: {theme.text};
                 }}
                 QLineEdit, QTextEdit {{
-                    background-color: {theme.primary};
-                    color: {theme.text};
-                    border: 1px solid {theme.secondary};
+                    background-color: {theme.input_background};
+                    color: {theme.input_text};
+                    border: 1px solid {theme.input_border};
                     padding: 5px;
                     border-radius: 3px;
                 }}
                 QListWidget {{
-                    background-color: {theme.primary};
-                    color: {theme.text};
-                    border: 1px solid {theme.secondary};
+                    background-color: {theme.list_background};
+                    color: {theme.list_text};
+                    border: 1px solid {theme.input_border};
                 }}
                 QListWidget::item:selected {{
-                    background-color: {theme.accent};
+                    background-color: {theme.list_selected};
+                    color: {theme.list_text};
+                }}
+                QListWidget::item:hover {{
+                    background-color: {theme.list_hover};
                 }}
                 QLabel {{
                     color: {theme.text};
+                    background-color: transparent;
                 }}
             """)
             
