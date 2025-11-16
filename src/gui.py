@@ -6,6 +6,7 @@
 import sys
 import logging
 from pathlib import Path
+from datetime import datetime, timezone
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QListWidget, QListWidgetItem, QLineEdit, QTextEdit, QPushButton,
@@ -339,6 +340,12 @@ class NotesApp(QMainWindow):
         self.statistics_label.setStyleSheet("color: #666666; font-size: 11px; padding: 5px;")
         self.statistics_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         status_bar_layout.addWidget(self.statistics_label)
+        
+        # Подробная информация о текущей заметке
+        self.note_info_label = QLabel("")
+        self.note_info_label.setStyleSheet("color: #666666; font-size: 10px; padding: 5px;")
+        self.note_info_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        right_layout.addWidget(self.note_info_label)
         
         right_layout.addLayout(status_bar_layout)
         
@@ -1156,6 +1163,7 @@ class NotesApp(QMainWindow):
             
             self.has_unsaved_changes = False
             self.update_status(f"Заметка загружена: {note.title}")
+            self.update_note_info()
             
             # Применяем подсветку текста, если есть активный поиск
             search_text = self.search_box.text().strip()
@@ -1340,6 +1348,7 @@ class NotesApp(QMainWindow):
                     self.btn_delete.setEnabled(False)
                     self.btn_pin.setEnabled(False)
                     self.has_unsaved_changes = False
+                    self.note_info_label.setText("")
                     
                     # Обновляем список
                     self.load_notes_list()
@@ -1428,6 +1437,7 @@ class NotesApp(QMainWindow):
         self.has_unsaved_changes = True
         self.btn_save.setEnabled(True)
         self.update_status("Есть несохраненные изменения")
+        self.update_note_info()
         
         # Перезапускаем таймер автосохранения
         self.autosave_timer.stop()  # Останавливаем предыдущий таймер
@@ -1458,6 +1468,44 @@ class NotesApp(QMainWindow):
             stats_text += f" | Удалено: {deleted}"
         
         self.statistics_label.setText(stats_text)
+    
+    def update_note_info(self):
+        """Обновление информации о текущей заметке."""
+        if not self.current_note_id:
+            self.note_info_label.setText("")
+            return
+        
+        note = self.store.get_note(self.current_note_id)
+        if not note:
+            self.note_info_label.setText("")
+            return
+        
+        # Подсчет символов и слов
+        char_count = len(note.body)
+        word_count = len(note.body.split()) if note.body.strip() else 0
+        
+        # Форматирование даты создания
+        try:
+            created_date = datetime.fromisoformat(note.last_modified.replace('Z', '+00:00'))
+            date_str = created_date.strftime("%d %B %Y")
+            # Перевод месяцев на русский
+            months_ru = {
+                'January': 'января', 'February': 'февраля', 'March': 'марта',
+                'April': 'апреля', 'May': 'мая', 'June': 'июня',
+                'July': 'июля', 'August': 'августа', 'September': 'сентября',
+                'October': 'октября', 'November': 'ноября', 'December': 'декабря'
+            }
+            for en, ru in months_ru.items():
+                date_str = date_str.replace(en, ru)
+        except:
+            date_str = "неизвестно"
+        
+        # Форматирование чисел с запятыми
+        char_formatted = f"{char_count:,}".replace(',', ' ')
+        word_formatted = f"{word_count:,}".replace(',', ' ')
+        
+        info_text = f"Текущая заметка: {char_formatted} символов, {word_formatted} слов | Дата изменения: {date_str}"
+        self.note_info_label.setText(info_text)
     
     def on_sort_changed(self, index):
         """Обработчик изменения режима сортировки."""
