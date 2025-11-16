@@ -40,7 +40,8 @@ class Note:
         title: str = "",
         body: str = "",
         last_modified: Optional[str] = None,
-        version: int = 1
+        version: int = 1,
+        deleted: bool = False
     ):
         """
         Инициализация заметки.
@@ -51,12 +52,14 @@ class Note:
             body: Текст заметки
             last_modified: Время последнего изменения (если None, используется текущее время)
             version: Версия заметки
+            deleted: Флаг удаления (tombstone для синхронизации)
         """
         self.id = nid or str(uuid.uuid4())
         self.title = title
         self.body = body
         self.last_modified = last_modified or datetime.now(timezone.utc).isoformat()
         self.version = version
+        self.deleted = deleted
     
     def validate(self) -> bool:
         """
@@ -98,11 +101,12 @@ class Note:
             "title": self.title,
             "body": self.body,
             "last_modified": self.last_modified,
+            "deleted": self.deleted,
             "version": self.version
         }
     
-    @classmethod
-    def from_dict(cls, data: Dict) -> 'Note':
+    @staticmethod
+    def from_dict(data: Dict) -> 'Note':
         """
         Десериализация заметки из словаря.
         
@@ -110,14 +114,15 @@ class Note:
             data: Словарь с данными заметки
             
         Returns:
-            Note: Объект заметки
+            Note: Созданная заметка
         """
-        return cls(
+        return Note(
             nid=data.get("id"),
             title=data.get("title", ""),
             body=data.get("body", ""),
             last_modified=data.get("last_modified"),
-            version=data.get("version", 1)
+            version=data.get("version", 1),
+            deleted=data.get("deleted", False)
         )
     
     def update(self, title: Optional[str] = None, body: Optional[str] = None):
@@ -207,7 +212,7 @@ class NoteStore:
     
     def delete_note(self, note_id: str) -> bool:
         """
-        Удаление заметки.
+        Мягкое удаление заметки (установка флага deleted для синхронизации).
         
         Args:
             note_id: ID заметки для удаления
@@ -216,10 +221,49 @@ class NoteStore:
             bool: True если заметка удалена, False если заметка не найдена
         """
         if note_id in self.notes:
-            del self.notes[note_id]
+            # Устанавливаем флаг deleted вместо физического удаления
+            self.notes[note_id].deleted = True
+            self.notes[note_id].last_modified = datetime.now(timezone.utc).isoformat()
+            self.notes[note_id].version += 1
             self.save()
+            logger.info("Заметка помечена удалённой (tombstone): %s", note_id[:8])
             return True
+        
+        logger.warning("Попытка удалить несуществующую заметку: %s", note_id[:8])
         return False
+    
+    def cleanup_tombstones(self, older_than_days: int = 30) -> int:
+        """
+        Очистка старых tombstones (физическое удаление помеченных заметок).
+        
+        Args:
+            older_than_days: Удалить tombstones старше указанного количества дней
+            
+        Returns:
+            int: Количество удалённых tombstones
+        """
+        now = datetime.now(timezone.utc)
+        deleted_count = 0
+        
+        for note_id in list(self.notes.keys()):
+            note = self.notes[note_id]
+            if note.deleted:
+                try:
+                    modified_time = datetime.fromisoformat(note.last_modified.replace('Z', '+00:00'))
+                    age_days = (now - modified_time).days
+                    
+                    if age_days > older_than_days:
+                        del self.notes[note_id]
+                        deleted_count += 1
+                        logger.info("Tombstone физически удалён: %s (возраст: %d дней)", note_id[:8], age_days)
+                except Exception as e:
+                    logger.error("Ошибка при очистке tombstone %s: %s", note_id[:8], e)
+        
+        if deleted_count > 0:
+            self.save()
+            logger.info("Очищено tombstones: %d", deleted_count)
+        
+        return deleted_count
     
     def get_note(self, note_id: str) -> Optional[Note]:
         """
@@ -235,7 +279,16 @@ class NoteStore:
     
     def get_all_notes(self) -> List[Note]:
         """
-        Получение всех заметок.
+        Получение всех активных заметок (без удалённых).
+        
+        Returns:
+            List[Note]: Список всех активных заметок
+        """
+        return [note for note in self.notes.values() if not note.deleted]
+    
+    def get_all_notes_including_deleted(self) -> List[Note]:
+        """
+        Получение всех заметок включая удалённые (tombstones).
         
         Returns:
             List[Note]: Список всех заметок

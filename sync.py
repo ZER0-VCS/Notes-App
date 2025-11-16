@@ -102,9 +102,42 @@ class SyncManager:
         
         return self.cloud_path / "notes.json"
     
+    def find_conflict_files(self) -> List[Path]:
+        """
+        Поиск конфликтных копий OneDrive в облачной папке.
+        
+        OneDrive создаёт файлы типа:
+        - notes-DESKTOP-ABC123.json
+        - notes (conflicted copy).json
+        
+        Returns:
+            List[Path]: Список путей к конфликтным файлам
+        """
+        if not self.cloud_path:
+            return []
+        
+        conflict_files = []
+        
+        try:
+            # Ищем файлы с паттерном конфликта
+            for file in self.cloud_path.glob("notes*.json"):
+                # Исключаем основной файл и временные файлы
+                if file.name == "notes.json" or file.suffix == '.tmp':
+                    continue
+                
+                # Конфликтные файлы OneDrive обычно содержат имя компьютера или "conflicted"
+                if "conflicted" in file.name.lower() or file.name.startswith("notes-"):
+                    conflict_files.append(file)
+                    logger.info("Обнаружен конфликтный файл: %s", file.name)
+        
+        except Exception as e:
+            logger.error("Ошибка при поиске конфликтных файлов: %s", e)
+        
+        return conflict_files
+    
     def load_remote_notes(self) -> Optional[Dict[str, Note]]:
         """
-        Загрузка заметок из облачного хранилища.
+        Загрузка заметок из облачного хранилища с автоматическим слиянием конфликтных файлов.
         
         Returns:
             Optional[Dict[str, Note]]: Словарь заметок или None при ошибке
@@ -120,6 +153,7 @@ class SyncManager:
             return {}
         
         try:
+            # Загружаем основной файл
             with open(cloud_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
             
@@ -127,7 +161,47 @@ class SyncManager:
             remote_notes = {note_id: Note.from_dict(note_data) 
                            for note_id, note_data in notes_data.items()}
             
-            logger.info("Загружено удаленных заметок: %d", len(remote_notes))
+            logger.info("Загружено заметок из основного файла: %d", len(remote_notes))
+            
+            # Ищем и обрабатываем конфликтные файлы OneDrive
+            conflict_files = self.find_conflict_files()
+            
+            if conflict_files:
+                logger.warning("Обнаружено конфликтных файлов OneDrive: %d", len(conflict_files))
+                
+                for conflict_file in conflict_files:
+                    try:
+                        with open(conflict_file, 'r', encoding='utf-8') as f:
+                            conflict_data = json.load(f)
+                        
+                        conflict_notes_data = conflict_data.get("notes", {})
+                        
+                        # Сливаем заметки из конфликтного файла
+                        for note_id, note_data in conflict_notes_data.items():
+                            conflict_note = Note.from_dict(note_data)
+                            
+                            if note_id in remote_notes:
+                                # Применяем LWW для конфликтных заметок
+                                existing_note = remote_notes[note_id]
+                                existing_time = datetime.fromisoformat(existing_note.last_modified.replace('Z', '+00:00'))
+                                conflict_time = datetime.fromisoformat(conflict_note.last_modified.replace('Z', '+00:00'))
+                                
+                                if conflict_time > existing_time:
+                                    remote_notes[note_id] = conflict_note
+                                    logger.info("Заметка %s обновлена из конфликтного файла (новее)", note_id[:8])
+                            else:
+                                # Заметка есть только в конфликтном файле
+                                remote_notes[note_id] = conflict_note
+                                logger.info("Заметка %s добавлена из конфликтного файла", note_id[:8])
+                        
+                        # Удаляем обработанный конфликтный файл
+                        conflict_file.unlink()
+                        logger.info("Конфликтный файл обработан и удалён: %s", conflict_file.name)
+                    
+                    except Exception as e:
+                        logger.error("Ошибка при обработке конфликтного файла %s: %s", conflict_file.name, e)
+            
+            logger.info("Всего загружено удаленных заметок (включая конфликты): %d", len(remote_notes))
             return remote_notes
         
         except json.JSONDecodeError as e:
@@ -214,22 +288,23 @@ class SyncManager:
     def merge_notes(self, local_notes: Dict[str, Note], 
                     remote_notes: Dict[str, Note]) -> Tuple[Dict[str, Note], List[SyncConflict]]:
         """
-        Слияние локальных и удаленных заметок по алгоритму Last-Writer-Wins.
+        Слияние локальных и удаленных заметок по алгоритму Last-Writer-Wins с поддержкой tombstones.
         
         Алгоритм:
-        1. Для заметок только в одном месте - берем их
+        1. Для заметок только в одном месте - берем их (включая tombstones)
         2. Для заметок в обоих местах:
+           - Если хотя бы одна помечена deleted - берем более свежую версию (tombstone побеждает)
            - Сравниваем last_modified
            - Берем более свежую
            - При конфликте создаем SyncConflict
         
         Args:
-            local_notes: Локальные заметки
-            remote_notes: Удаленные заметки
+            local_notes: Локальные заметки (включая tombstones)
+            remote_notes: Удаленные заметки (включая tombstones)
             
         Returns:
             Tuple[Dict[str, Note], List[SyncConflict]]: 
-                Объединенные заметки и список конфликтов
+                Объединенные заметки (включая tombstones) и список конфликтов
         """
         merged_notes = {}
         conflicts = []
@@ -240,20 +315,40 @@ class SyncManager:
             local_note = local_notes.get(note_id)
             remote_note = remote_notes.get(note_id)
             
-            # Заметка только локально
+            # Заметка только локально (включая tombstone)
             if local_note and not remote_note:
                 merged_notes[note_id] = local_note
-                logger.debug("Заметка %s только локально", note_id[:8])
+                if local_note.deleted:
+                    logger.debug("Tombstone %s только локально", note_id[:8])
+                else:
+                    logger.debug("Заметка %s только локально", note_id[:8])
                 continue
             
-            # Заметка только удаленно
+            # Заметка только удаленно (включая tombstone)
             if remote_note and not local_note:
                 merged_notes[note_id] = remote_note
-                logger.debug("Заметка %s только удаленно", note_id[:8])
+                if remote_note.deleted:
+                    logger.debug("Tombstone %s только удаленно", note_id[:8])
+                else:
+                    logger.debug("Заметка %s только удаленно", note_id[:8])
                 continue
             
             # Заметка в обоих местах - нужно слияние
             if local_note and remote_note:
+                # Особая обработка tombstones: всегда берем более свежий tombstone
+                if local_note.deleted or remote_note.deleted:
+                    local_time = datetime.fromisoformat(local_note.last_modified.replace('Z', '+00:00'))
+                    remote_time = datetime.fromisoformat(remote_note.last_modified.replace('Z', '+00:00'))
+                    
+                    if local_time >= remote_time:
+                        merged_notes[note_id] = local_note
+                        logger.debug("Tombstone: локальная версия новее для %s", note_id[:8])
+                    else:
+                        merged_notes[note_id] = remote_note
+                        logger.debug("Tombstone: удаленная версия новее для %s", note_id[:8])
+                    continue
+                
+                # Обычное слияние для активных заметок
                 # Проверка на конфликт
                 if self.detect_conflicts(local_note, remote_note):
                     conflict = SyncConflict(note_id, local_note, remote_note)
@@ -274,8 +369,12 @@ class SyncManager:
                     merged_notes[note_id] = remote_note
                     logger.debug("Удаленная версия новее для %s", note_id[:8])
         
-        logger.info("Слияние завершено: %d заметок, %d конфликтов", 
-                   len(merged_notes), len(conflicts))
+        # Подсчитываем активные заметки и tombstones
+        active_count = sum(1 for note in merged_notes.values() if not note.deleted)
+        tombstone_count = sum(1 for note in merged_notes.values() if note.deleted)
+        
+        logger.info("Слияние завершено: %d активных заметок, %d tombstones, %d конфликтов", 
+                   active_count, tombstone_count, len(conflicts))
         
         return merged_notes, conflicts
     
@@ -322,8 +421,8 @@ class SyncManager:
                 logger.error("Не удалось загрузить удаленные заметки")
                 return False, 0, 0
             
-            # Получаем локальные заметки
-            local_notes = {note.id: note for note in self.local_store.get_all_notes()}
+            # Получаем локальные заметки ВКЛЮЧАЯ TOMBSTONES для правильной синхронизации удаления
+            local_notes = {note.id: note for note in self.local_store.get_all_notes_including_deleted()}
             
             # Слияние
             merged_notes, conflicts = self.merge_notes(local_notes, remote_notes)
@@ -343,13 +442,20 @@ class SyncManager:
                 logger.error("Не удалось сохранить в облако")
                 return False, 0, len(conflicts)
             
-            synced_count = len(merged_notes)
+            # Очистка старых tombstones (удаление заметок, помеченных как deleted более 30 дней назад)
+            cleaned_count = self.local_store.cleanup_tombstones(older_than_days=30)
+            if cleaned_count > 0:
+                # Пересохраняем в облако после очистки tombstones
+                self.save_remote_notes(self.local_store.notes)
+            
+            # Подсчёт активных заметок (без tombstones)
+            active_count = sum(1 for note in merged_notes.values() if not note.deleted)
             conflict_count = len(conflicts)
             
-            logger.info("Синхронизация завершена: %d заметок, %d конфликтов", 
-                       synced_count, conflict_count)
+            logger.info("Синхронизация завершена: %d активных заметок, %d конфликтов, %d tombstones очищено", 
+                       active_count, conflict_count, cleaned_count)
             
-            return True, synced_count, conflict_count
+            return True, active_count, conflict_count
         
         except Exception as e:
             logger.error("Ошибка при синхронизации: %s", e)
