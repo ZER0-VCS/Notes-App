@@ -11,13 +11,19 @@ from PySide6.QtWidgets import (
     QListWidget, QListWidgetItem, QLineEdit, QTextEdit, QPushButton,
     QSplitter, QMessageBox, QLabel, QFileDialog
 )
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, Signal, QObject
 import threading
 from PySide6.QtGui import QFont, QShortcut, QKeySequence
 from notes import Note, NoteStore
 from sync import SyncManager
 
 logger = logging.getLogger(__name__)
+
+
+class SyncSignals(QObject):
+    """Сигналы для межпоточной коммуникации синхронизации."""
+    completed = Signal(bool, int, int)  # success, synced_count, conflict_count
+    error = Signal(Exception)  # error
 
 
 class NotesApp(QMainWindow):
@@ -45,6 +51,11 @@ class NotesApp(QMainWindow):
         # Инициализация менеджера синхронизации
         self.sync_manager = SyncManager(self.store)
         logger.info("Менеджер синхронизации инициализирован")
+        
+        # Создание сигналов для межпоточной коммуникации
+        self.sync_signals = SyncSignals()
+        self.sync_signals.completed.connect(self._on_sync_complete)
+        self.sync_signals.error.connect(self._on_sync_error)
         
         # Настройка окна
         self.setWindowTitle("Заметки")
@@ -520,20 +531,28 @@ class NotesApp(QMainWindow):
             try:
                 logger.info("Фоновая синхронизация запущена")
                 success, synced_count, conflict_count = self.sync_manager.sync()
-                # Передаём результат в главный поток
-                QTimer.singleShot(0, lambda: self._on_sync_complete(success, synced_count, conflict_count))
+                # Передаём результат в главный поток через сигнал
+                self.sync_signals.completed.emit(success, synced_count, conflict_count)
             except Exception as e:
                 logger.error("Ошибка в фоновом потоке синхронизации: %s", e)
-                QTimer.singleShot(0, lambda: self._on_sync_error(e))
+                self.sync_signals.error.emit(e)
 
         thread = threading.Thread(target=worker, daemon=True)
         thread.start()
 
     def _on_sync_complete(self, success: bool, synced_count: int, conflict_count: int):
         """Обработчик завершения синхронизации (главный поток)."""
+        # ВАЖНО: Сначала разблокируем кнопки, потом показываем диалоги
+        # Иначе модальный диалог может заблокировать выполнение finally
+        self._sync_in_progress = False
+        self.btn_sync.setEnabled(True)
+        self.btn_sync_settings.setEnabled(True)
+        
         try:
             if success:
                 self.load_notes_list()
+                logger.info("Фоновая синхронизация успешна: %d заметок, %d конфликтов", synced_count, conflict_count)
+                
                 if conflict_count > 0:
                     self.update_status(f"Синхронизация: {synced_count} заметок, {conflict_count} конфликтов")
                     QMessageBox.warning(
@@ -548,14 +567,12 @@ class NotesApp(QMainWindow):
                         "Синхронизация завершена",
                         f"Успешно синхронизировано {synced_count} заметок"
                     )
-                logger.info("Фоновая синхронизация успешна: %d, %d", synced_count, conflict_count)
             else:
                 self.update_status("Ошибка синхронизации")
                 QMessageBox.critical(self, "Ошибка синхронизации", "Не удалось выполнить синхронизацию.\nПроверьте логи для деталей.")
-        finally:
-            self._sync_in_progress = False
-            self.btn_sync.setEnabled(True)
-            self.btn_sync_settings.setEnabled(True)
+                logger.error("Синхронизация не удалась")
+        except Exception as e:
+            logger.error("Ошибка в обработчике завершения синхронизации: %s", e)
 
     def _on_sync_error(self, error: Exception):
         """Обработчик ошибок синхронизации (главный поток)."""
