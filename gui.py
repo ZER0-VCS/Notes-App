@@ -291,17 +291,24 @@ class NotesApp(QMainWindow):
         self._sync_in_progress = False
         self._is_manual_sync = False  # Флаг для различения ручной и автосинхронизации
         
+        # Загружаем настройки интервалов
+        config_settings = self._load_config_settings()
+        autosave_interval = config_settings.get('autosave_interval', 5)
+        autosync_interval = config_settings.get('autosync_interval', 60)
+        
         # Таймер автосохранения
         self.autosave_timer = QTimer()
         self.autosave_timer.setSingleShot(True)  # Однократный запуск после каждого изменения
         self.autosave_timer.timeout.connect(self.autosave_current_note)
-        self.autosave_delay = 5000  # 5 секунд в миллисекундах
+        self.autosave_delay = autosave_interval * 1000  # В миллисекундах
+        logger.info(f"Интервал автосохранения: {autosave_interval} сек")
         
         # Таймер автосинхронизации
         self.autosync_timer = QTimer()
         self.autosync_timer.timeout.connect(self.auto_sync_notes)
-        self.autosync_interval = 60000  # 60 секунд в миллисекундах
+        self.autosync_interval = autosync_interval * 1000  # В миллисекундах
         self.autosync_enabled = False  # По умолчанию выключена
+        logger.info(f"Интервал автосинхронизации: {autosync_interval} сек")
         
         # Запускаем автосинхронизацию, если настроена папка облака
         if self.sync_manager.cloud_path:
@@ -332,6 +339,22 @@ class NotesApp(QMainWindow):
         from PySide6.QtGui import QActionGroup, QAction
         
         menubar = self.menuBar()
+        
+        # Меню "Файл"
+        file_menu = menubar.addMenu("&Файл")
+        
+        # Настройки
+        settings_action = QAction("Настройки...", self)
+        settings_action.triggered.connect(self.open_settings_dialog)
+        file_menu.addAction(settings_action)
+        
+        file_menu.addSeparator()
+        
+        # Выход
+        exit_action = QAction("Выход", self)
+        exit_action.setShortcut("Ctrl+Q")
+        exit_action.triggered.connect(self.close)
+        file_menu.addAction(exit_action)
         
         # Меню "Вид"
         view_menu = menubar.addMenu("&Вид")
@@ -364,6 +387,40 @@ class NotesApp(QMainWindow):
         
         logger.info("Меню создано")
     
+    def open_settings_dialog(self):
+        """Открыть диалог настроек."""
+        from settings_dialog import SettingsDialog
+        
+        # Загружаем текущую тему из конфига
+        saved_theme = self._load_theme_config()
+        
+        dialog = SettingsDialog(self, saved_theme)
+        if dialog.exec():
+            logger.info("Настройки сохранены пользователем")
+            QMessageBox.information(
+                self,
+                "Настройки применены",
+                "Настройки сохранены успешно."
+            )
+    
+    def update_intervals(self, autosave_interval: int, autosync_interval: int):
+        """
+        Обновить интервалы автосохранения и автосинхронизации.
+        
+        Args:
+            autosave_interval: Интервал автосохранения в секундах
+            autosync_interval: Интервал автосинхронизации в секундах
+        """
+        # Обновляем автосохранение
+        if hasattr(self, 'autosave_timer') and self.autosave_timer.isActive():
+            self.autosave_timer.setInterval(autosave_interval * 1000)
+            logger.info(f"Интервал автосохранения обновлен: {autosave_interval} сек")
+        
+        # Обновляем автосинхронизацию
+        if hasattr(self, 'autosync_timer') and self.autosync_timer.isActive():
+            self.autosync_timer.setInterval(autosync_interval * 1000)
+            logger.info(f"Интервал автосинхронизации обновлен: {autosync_interval} сек")
+    
     def change_theme(self, theme_name: str):
         """
         Изменить тему оформления.
@@ -391,6 +448,32 @@ class NotesApp(QMainWindow):
                 f"Не удалось изменить тему:\n{e}"
             )
     
+    def _load_config_settings(self) -> dict:
+        """
+        Загрузить все настройки из config.json.
+        
+        Returns:
+            Словарь с настройками
+        """
+        import json
+        config_path = Path.home() / ".notes_app" / "config.json"
+        default_settings = {
+            'theme': 'light',
+            'autosave_interval': 5,
+            'autosync_interval': 60,
+            'editor_font': 'Arial',
+            'editor_font_size': 11
+        }
+        try:
+            if config_path.exists():
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                    logger.info("Настройки загружены из конфига")
+                    return {**default_settings, **config}
+        except Exception as e:
+            logger.warning(f"Не удалось загрузить настройки из конфига: {e}")
+        return default_settings
+    
     def _load_theme_config(self) -> str:
         """
         Загрузить настройку темы из config.json.
@@ -398,18 +481,10 @@ class NotesApp(QMainWindow):
         Returns:
             Имя темы или "light" по умолчанию
         """
-        import json
-        config_path = Path.home() / ".notes_app" / "config.json"
-        try:
-            if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
-                    config = json.load(f)
-                    theme = config.get('theme', 'light')
-                    logger.info(f"Загружена тема из конфига: {theme}")
-                    return theme
-        except Exception as e:
-            logger.warning(f"Не удалось загрузить тему из конфига: {e}")
-        return "light"
+        config = self._load_config_settings()
+        theme = config.get('theme', 'light')
+        logger.info(f"Загружена тема из конфига: {theme}")
+        return theme
     
     def _save_theme_config(self, theme_name: str):
         """
