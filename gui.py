@@ -60,6 +60,9 @@ class NotesApp(QMainWindow):
         # Настройка окна
         self.setWindowTitle("Заметки")
         self.setGeometry(100, 100, 1000, 600)
+        # Установка минимального и максимального размера окна
+        self.setMinimumSize(800, 500)
+        self.setMaximumSize(1600, 1200)
         
         # Создание интерфейса
         self.init_ui()
@@ -98,6 +101,8 @@ class NotesApp(QMainWindow):
         # Список заметок
         self.notes_list = QListWidget()
         self.notes_list.itemClicked.connect(self.on_note_selected)
+        # Ограничение ширины для предотвращения растягивания окна
+        self.notes_list.setMaximumWidth(400)
         left_layout.addWidget(self.notes_list)
         
         # Кнопка "Создать новую заметку"
@@ -134,6 +139,8 @@ class NotesApp(QMainWindow):
         # Ограничение длины заголовка
         self.title_edit.setMaxLength(100)
         self.title_edit.textChanged.connect(self.on_text_changed)
+        # Ограничение ширины для предотвращения растягивания окна
+        self.title_edit.setMaximumWidth(800)
         right_layout.addWidget(self.title_edit)
         
         # Текст заметки
@@ -143,6 +150,8 @@ class NotesApp(QMainWindow):
         self.body_edit = QTextEdit()
         self.body_edit.setPlaceholderText("Введите текст заметки...")
         self.body_edit.setFont(QFont("Arial", 11))
+        # Включение переноса слов для предотвращения горизонтальной прокрутки
+        self.body_edit.setLineWrapMode(QTextEdit.WidgetWidth)
         self.body_edit.textChanged.connect(self.on_text_changed)
         right_layout.addWidget(self.body_edit)
         
@@ -214,18 +223,20 @@ class NotesApp(QMainWindow):
         buttons_layout.addWidget(self.btn_sync)
 
         # Кнопка настроек синхронизации (смена папки) - всегда доступна
-        self.btn_sync_settings = QPushButton("⚙️")
+        self.btn_sync_settings = QPushButton("📁")
         self.btn_sync_settings.setFixedWidth(36)
         self.btn_sync_settings.clicked.connect(self.setup_sync_path)
         self.btn_sync_settings.setToolTip("Изменить папку синхронизации")
         buttons_layout.addWidget(self.btn_sync_settings)
-
-        # Статусная метка
-        self.status_label = QLabel("")
-        self.status_label.setStyleSheet("color: #666666; font-size: 11px;")
-        buttons_layout.addWidget(self.status_label)
         
         right_layout.addLayout(buttons_layout)
+        
+        # Статусная метка внизу (отдельная строка чтобы не сдвигать кнопки)
+        self.status_label = QLabel("")
+        self.status_label.setStyleSheet("color: #666666; font-size: 11px; padding: 5px;")
+        self.status_label.setWordWrap(True)
+        self.status_label.setMaximumHeight(40)
+        right_layout.addWidget(self.status_label)
         
         splitter.addWidget(right_panel)
         
@@ -265,8 +276,15 @@ class NotesApp(QMainWindow):
         notes.sort(key=lambda n: n.last_modified, reverse=True)
         
         for note in notes:
-            item = QListWidgetItem(note.title or "(Без заголовка)")
+            # Обрезаем длинные названия для списка
+            title = note.title or "(Без заголовка)"
+            if len(title) > 50:
+                title = title[:47] + "..."
+            
+            item = QListWidgetItem(title)
             item.setData(Qt.UserRole, note.id)  # Сохраняем ID заметки
+            # Добавляем полный заголовок как подсказку
+            item.setToolTip(note.title or "(Без заголовка)")
             self.notes_list.addItem(item)
         
         # Обновление статуса
