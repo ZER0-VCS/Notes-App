@@ -132,7 +132,7 @@ class NotesApp(QMainWindow):
         
         # Поле поиска
         self.search_box = QLineEdit()
-        self.search_box.setPlaceholderText("🔍 Поиск по заголовку и тексту...")
+        self.search_box.setPlaceholderText("Поиск по заголовку и тексту...")
         self.search_box.textChanged.connect(self.filter_notes)
         self.search_box.setClearButtonEnabled(True)  # Кнопка очистки
         left_layout.addWidget(self.search_box)
@@ -880,20 +880,20 @@ class NotesApp(QMainWindow):
         sort_mode = self.sort_combo.currentText()
         
         if sort_mode == "По дате (новые)":
-            # Сначала закрепленные, затем по дате (новые сверху)
-            notes.sort(key=lambda n: (not n.pinned, n.last_modified), reverse=True)
+            # Закрепленные внизу, затем по дате (новые сверху)
+            notes.sort(key=lambda n: (n.pinned, n.last_modified), reverse=True)
         elif sort_mode == "По дате (старые)":
-            # Сначала закрепленные, затем по дате (старые сверху)
-            notes.sort(key=lambda n: (not n.pinned, n.last_modified))
+            # Закрепленные внизу, затем по дате (старые сверху)
+            notes.sort(key=lambda n: (n.pinned, n.last_modified))
         elif sort_mode == "По алфавиту (А-Я)":
-            # Сначала закрепленные, затем по алфавиту А-Я
-            notes.sort(key=lambda n: (not n.pinned, (n.title or "").lower()))
+            # Закрепленные внизу, затем по алфавиту А-Я
+            notes.sort(key=lambda n: (n.pinned, (n.title or "").lower()))
         elif sort_mode == "По алфавиту (Я-А)":
-            # Сначала закрепленные, затем по алфавиту Я-А
-            notes.sort(key=lambda n: (not n.pinned, (n.title or "").lower()), reverse=True)
+            # Закрепленные внизу, затем по алфавиту Я-А
+            notes.sort(key=lambda n: (n.pinned, (n.title or "").lower()), reverse=True)
         elif sort_mode == "По размеру":
-            # Сначала закрепленные, затем по размеру (большие сверху)
-            notes.sort(key=lambda n: (not n.pinned, len(n.body)), reverse=True)
+            # Закрепленные внизу, затем по размеру (большие сверху)
+            notes.sort(key=lambda n: (n.pinned, -len(n.body)))
         
         for note in notes:
             # Обрезаем длинные названия для списка
