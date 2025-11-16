@@ -343,6 +343,37 @@ class NotesApp(QMainWindow):
         # Меню "Файл"
         file_menu = menubar.addMenu("&Файл")
         
+        # Экспорт
+        export_menu = file_menu.addMenu("Экспорт")
+        
+        export_md_action = QAction("Текущую заметку в Markdown...", self)
+        export_md_action.triggered.connect(lambda: self.export_current_note('markdown'))
+        export_menu.addAction(export_md_action)
+        
+        export_txt_action = QAction("Текущую заметку в TXT...", self)
+        export_txt_action.triggered.connect(lambda: self.export_current_note('txt'))
+        export_menu.addAction(export_txt_action)
+        
+        export_html_action = QAction("Текущую заметку в HTML...", self)
+        export_html_action.triggered.connect(lambda: self.export_current_note('html'))
+        export_menu.addAction(export_html_action)
+        
+        export_menu.addSeparator()
+        
+        export_all_md_action = QAction("Все заметки в ZIP (Markdown)...", self)
+        export_all_md_action.triggered.connect(lambda: self.export_all_notes('markdown'))
+        export_menu.addAction(export_all_md_action)
+        
+        export_all_txt_action = QAction("Все заметки в ZIP (TXT)...", self)
+        export_all_txt_action.triggered.connect(lambda: self.export_all_notes('txt'))
+        export_menu.addAction(export_all_txt_action)
+        
+        export_all_html_action = QAction("Все заметки в ZIP (HTML)...", self)
+        export_all_html_action.triggered.connect(lambda: self.export_all_notes('html'))
+        export_menu.addAction(export_all_html_action)
+        
+        file_menu.addSeparator()
+        
         # Настройки
         settings_action = QAction("Настройки...", self)
         settings_action.triggered.connect(self.open_settings_dialog)
@@ -386,6 +417,133 @@ class NotesApp(QMainWindow):
             theme_menu.addAction(action)
         
         logger.info("Меню создано")
+    
+    def export_current_note(self, format_type: str):
+        """
+        Экспортировать текущую заметку в указанный формат.
+        
+        Args:
+            format_type: Тип формата ('markdown', 'txt', 'html')
+        """
+        if not self.current_note_id:
+            QMessageBox.warning(
+                self,
+                "Нет выбранной заметки",
+                "Выберите заметку для экспорта."
+            )
+            return
+        
+        from export import NoteExporter
+        
+        note = self.store.get_note(self.current_note_id)
+        if not note:
+            QMessageBox.warning(
+                self,
+                "Ошибка",
+                "Не удалось загрузить заметку."
+            )
+            return
+        
+        # Выбор файла для сохранения
+        extensions = {
+            'markdown': ('Markdown Files (*.md)', '.md'),
+            'txt': ('Text Files (*.txt)', '.txt'),
+            'html': ('HTML Files (*.html)', '.html')
+        }
+        
+        ext_filter, ext = extensions.get(format_type, ('All Files (*)', ''))
+        
+        # Безопасное имя файла
+        safe_title = "".join(c for c in note.title if c.isalnum() or c in (' ', '-', '_')).strip()
+        if not safe_title:
+            safe_title = f"note_{note.id[:8]}"
+        
+        default_name = f"{safe_title}{ext}"
+        
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Экспортировать заметку",
+            str(Path.home() / default_name),
+            ext_filter
+        )
+        
+        if not file_path:
+            return
+        
+        # Экспорт
+        success = False
+        if format_type == 'markdown':
+            success = NoteExporter.export_to_markdown(note, Path(file_path))
+        elif format_type == 'txt':
+            success = NoteExporter.export_to_txt(note, Path(file_path))
+        elif format_type == 'html':
+            success = NoteExporter.export_to_html(note, Path(file_path))
+        
+        if success:
+            QMessageBox.information(
+                self,
+                "Экспорт завершен",
+                f"Заметка успешно экспортирована в:\n{file_path}"
+            )
+        else:
+            QMessageBox.critical(
+                self,
+                "Ошибка экспорта",
+                "Не удалось экспортировать заметку."
+            )
+    
+    def export_all_notes(self, format_type: str):
+        """
+        Экспортировать все заметки в ZIP архив.
+        
+        Args:
+            format_type: Тип формата ('markdown', 'txt', 'html')
+        """
+        from export import NoteExporter
+        
+        notes = self.store.get_all_notes()
+        if not notes:
+            QMessageBox.warning(
+                self,
+                "Нет заметок",
+                "Нет заметок для экспорта."
+            )
+            return
+        
+        # Выбор файла для сохранения
+        format_names = {
+            'markdown': 'Markdown',
+            'txt': 'TXT',
+            'html': 'HTML'
+        }
+        
+        default_name = f"notes_export_{format_names.get(format_type, 'all')}.zip"
+        
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Экспортировать все заметки",
+            str(Path.home() / default_name),
+            "ZIP Files (*.zip)"
+        )
+        
+        if not file_path:
+            return
+        
+        # Экспорт
+        success = NoteExporter.export_all_to_zip(notes, Path(file_path), format_type)
+        
+        if success:
+            QMessageBox.information(
+                self,
+                "Экспорт завершен",
+                f"Все заметки ({len(notes)}) успешно экспортированы в:\n{file_path}"
+            )
+        else:
+            QMessageBox.critical(
+                self,
+                "Ошибка экспорта",
+                "Не удалось экспортировать заметки."
+            )
     
     def open_settings_dialog(self):
         """Открыть диалог настроек."""
