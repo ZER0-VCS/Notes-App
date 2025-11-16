@@ -570,14 +570,84 @@ class NotesApp(QMainWindow):
             autosync_interval: Интервал автосинхронизации в секундах
         """
         # Обновляем автосохранение
-        if hasattr(self, 'autosave_timer') and self.autosave_timer.isActive():
-            self.autosave_timer.setInterval(autosave_interval * 1000)
+        if hasattr(self, 'autosave_delay'):
+            self.autosave_delay = autosave_interval * 1000
             logger.info(f"Интервал автосохранения обновлен: {autosave_interval} сек")
         
         # Обновляем автосинхронизацию
-        if hasattr(self, 'autosync_timer') and self.autosync_timer.isActive():
-            self.autosync_timer.setInterval(autosync_interval * 1000)
-            logger.info(f"Интервал автосинхронизации обновлен: {autosync_interval} сек")
+        if hasattr(self, 'autosync_interval'):
+            self.autosync_interval = autosync_interval * 1000
+            if hasattr(self, 'autosync_timer') and self.autosync_timer.isActive():
+                self.autosync_timer.setInterval(self.autosync_interval)
+                logger.info(f"Интервал автосинхронизации обновлен: {autosync_interval} сек")
+    
+    def apply_editor_font(self, font_family: str, font_size: int):
+        """
+        Применить шрифт к редактору заметок.
+        
+        Args:
+            font_family: Название шрифта
+            font_size: Размер шрифта
+        """
+        try:
+            # Применяем к полю заголовка
+            title_font = QFont(font_family, font_size + 3)  # Заголовок крупнее
+            self.title_edit.setFont(title_font)
+            
+            # Применяем к полю текста
+            body_font = QFont(font_family, font_size)
+            self.body_edit.setFont(body_font)
+            
+            logger.info(f"Шрифт применен: {font_family}, размер {font_size}")
+        except Exception as e:
+            logger.error(f"Ошибка при применении шрифта: {e}")
+    
+    def apply_theme_live(self, theme_name: str):
+        """
+        Применить тему оформления без перезапуска приложения.
+        
+        Args:
+            theme_name: Имя темы
+        """
+        try:
+            theme = self.theme_manager.get_theme(theme_name)
+            self.current_theme = theme
+            
+            # Применяем цвета темы к основным элементам
+            palette = self.palette()
+            palette.setColor(self.backgroundRole(), QColor(theme.background))
+            palette.setColor(self.foregroundRole(), QColor(theme.text))
+            self.setPalette(palette)
+            
+            # Обновляем стиль основного окна
+            self.setStyleSheet(f"""
+                QWidget {{
+                    background-color: {theme.background};
+                    color: {theme.text};
+                }}
+                QLineEdit, QTextEdit {{
+                    background-color: {theme.primary};
+                    color: {theme.text};
+                    border: 1px solid {theme.secondary};
+                    padding: 5px;
+                    border-radius: 3px;
+                }}
+                QListWidget {{
+                    background-color: {theme.primary};
+                    color: {theme.text};
+                    border: 1px solid {theme.secondary};
+                }}
+                QListWidget::item:selected {{
+                    background-color: {theme.accent};
+                }}
+                QLabel {{
+                    color: {theme.text};
+                }}
+            """)
+            
+            logger.info(f"Тема применена в реальном времени: {theme_name}")
+        except Exception as e:
+            logger.error(f"Ошибка при применении темы: {e}")
     
     def change_theme(self, theme_name: str):
         """
@@ -587,7 +657,8 @@ class NotesApp(QMainWindow):
             theme_name: Имя темы
         """
         try:
-            self.apply_theme(theme_name)
+            # Применяем тему сразу
+            self.apply_theme_live(theme_name)
             logger.info(f"Тема изменена на: {theme_name}")
             
             # Сохраняем выбор темы в config.json
@@ -596,7 +667,7 @@ class NotesApp(QMainWindow):
             QMessageBox.information(
                 self,
                 "Тема изменена",
-                f"Тема '{theme_name}' будет полностью применена после перезапуска приложения."
+                f"Тема '{theme_name}' успешно применена!"
             )
         except Exception as e:
             logger.error(f"Ошибка при изменении темы: {e}")

@@ -218,26 +218,61 @@ class SettingsDialog(QDialog):
     def apply_settings(self):
         """Применить настройки без закрытия диалога."""
         if self.save_settings():
-            QMessageBox.information(
-                self,
-                "Настройки применены",
-                "Настройки сохранены. Некоторые изменения вступят в силу после перезапуска приложения."
-            )
-            
-            # Обновляем интервалы в родительском приложении
+            # Применяем настройки в реальном времени
             if self.parent_app:
+                # Обновляем интервалы
                 self.parent_app.update_intervals(
                     self.autosave_spinbox.value(),
                     self.autosync_spinbox.value()
                 )
+                
+                # Применяем шрифт
+                self.parent_app.apply_editor_font(
+                    self.font_combo.currentText(),
+                    self.font_size_spinbox.value()
+                )
+                
+                # Применяем тему
+                selected_theme = None
+                for button in self.theme_button_group.buttons():
+                    if button.isChecked():
+                        selected_theme = button.theme_id
+                        break
+                
+                if selected_theme:
+                    self.parent_app.apply_theme_live(selected_theme)
+            
+            QMessageBox.information(
+                self,
+                "Настройки применены",
+                "Настройки успешно применены!"
+            )
     
     def accept_settings(self):
         """Принять настройки и закрыть диалог."""
         if self.save_settings():
-            # Обновляем интервалы в родительском приложении
+            # Применяем настройки в реальном времени
             if self.parent_app:
+                # Обновляем интервалы
                 self.parent_app.update_intervals(
                     self.autosave_spinbox.value(),
                     self.autosync_spinbox.value()
                 )
+                
+                # Применяем шрифт
+                self.parent_app.apply_editor_font(
+                    self.font_combo.currentText(),
+                    self.font_size_spinbox.value()
+                )
+                
+                # Применяем тему
+                selected_theme = None
+                for button in self.theme_button_group.buttons():
+                    if button.isChecked():
+                        selected_theme = button.theme_id
+                        break
+                
+                if selected_theme:
+                    self.parent_app.apply_theme_live(selected_theme)
+            
             self.accept()
