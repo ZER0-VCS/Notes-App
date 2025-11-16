@@ -118,7 +118,7 @@ class NotesApp(QMainWindow):
         self.notes_list.itemClicked.connect(self.on_note_selected)
         # Ограничение ширины для предотвращения растягивания окна
         self.notes_list.setMaximumWidth(400)
-        # Добавляем отступы между заметками для лучшей читаемости
+        # Добавляем spacing между элементами списка
         self.notes_list.setSpacing(4)
         left_layout.addWidget(self.notes_list)
         
@@ -325,7 +325,7 @@ class NotesApp(QMainWindow):
         notes.sort(key=lambda n: n.last_modified, reverse=True)
         
         for note in notes:
-            # Обрезаем длинные названия для списка (показываем начало)
+            # Обрезаем длинные названия для списка
             title = note.title or "(Без заголовка)"
             if len(title) > 50:
                 title = title[:47] + "..."
@@ -348,9 +348,19 @@ class NotesApp(QMainWindow):
         search_text = search_text.lower().strip()
         
         if not search_text:
-            # Показываем все заметки
+            # Показываем все заметки без подсветки
             for i in range(self.notes_list.count()):
-                self.notes_list.item(i).setHidden(False)
+                item = self.notes_list.item(i)
+                item.setHidden(False)
+                # Убираем индикаторы поиска
+                note_id = item.data(Qt.UserRole)
+                all_notes = self.store.get_all_notes()
+                note = next((n for n in all_notes if n.id == note_id), None)
+                if note:
+                    title = note.title or "(Без заголовка)"
+                    if len(title) > 50:
+                        title = title[:47] + "..."
+                    item.setText(title)
             self.search_results_label.setText("")
             return
         
@@ -375,20 +385,17 @@ class NotesApp(QMainWindow):
                     item.setHidden(False)
                     visible_count += 1
                     
-                    # Подсветка найденного сегмента
-                    match_info = []
-                    if title_match:
-                        match_info.append("📝 заголовок")
-                    if body_match:
-                        match_info.append("📄 текст")
-                    if tags_match:
-                        matched_tags = [tag for tag in note.tags if search_text in tag.lower()]
-                        match_info.append(f"🏷️ тег: {', '.join(matched_tags)}")
+                    # Добавляем индикатор типа совпадения
+                    title = note.title or "(Без заголовка)"
+                    if len(title) > 50:
+                        title = title[:47] + "..."
                     
-                    # Обновляем подсказку с информацией о совпадении
-                    original_tooltip = note.title or "(Без заголовка)"
-                    match_text = " | ".join(match_info)
-                    item.setToolTip(f"{original_tooltip}\n\n✨ Найдено в: {match_text}")
+                    if title_match:
+                        item.setText(f"📌 {title}")
+                    elif tags_match:
+                        item.setText(f"🏷️ {title}")
+                    else:  # body_match
+                        item.setText(f"📄 {title}")
                 else:
                     item.setHidden(True)
             else:
@@ -444,6 +451,8 @@ class NotesApp(QMainWindow):
             self.tags_edit.blockSignals(True)
             
             self.title_edit.setText(note.title)
+            # Устанавливаем курсор в начало для длинных заголовков
+            self.title_edit.setCursorPosition(0)
             self.body_edit.setText(note.body)
             # Конвертируем список тегов в строку через запятую
             self.tags_edit.setText(", ".join(note.tags))
