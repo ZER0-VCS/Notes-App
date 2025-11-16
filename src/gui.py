@@ -9,7 +9,7 @@ from pathlib import Path
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QListWidget, QListWidgetItem, QLineEdit, QTextEdit, QPushButton,
-    QSplitter, QMessageBox, QLabel, QFileDialog
+    QSplitter, QMessageBox, QLabel, QFileDialog, QComboBox
 )
 from PySide6.QtCore import Qt, QTimer, Signal, QObject
 import threading
@@ -141,6 +141,24 @@ class NotesApp(QMainWindow):
         self.search_results_label.setStyleSheet("color: #666666; font-size: 10px; padding: 2px;")
         left_layout.addWidget(self.search_results_label)
         
+        # Dropdown для сортировки
+        sort_layout = QHBoxLayout()
+        sort_label = QLabel("Сортировка:")
+        sort_label.setStyleSheet("color: #666666; font-size: 11px;")
+        sort_layout.addWidget(sort_label)
+        
+        self.sort_combo = QComboBox()
+        self.sort_combo.addItems([
+            "По дате (новые)",
+            "По дате (старые)",
+            "По алфавиту (А-Я)",
+            "По алфавиту (Я-А)",
+            "По размеру"
+        ])
+        self.sort_combo.currentIndexChanged.connect(self.on_sort_changed)
+        sort_layout.addWidget(self.sort_combo)
+        left_layout.addLayout(sort_layout)
+        
         # Список заметок
         self.notes_list = QListWidget()
         self.notes_list.itemClicked.connect(self.on_note_selected)
@@ -235,6 +253,28 @@ class NotesApp(QMainWindow):
         """)
         buttons_layout.addWidget(self.btn_save)
         
+        self.btn_pin = QPushButton("📌 Закрепить")
+        self.btn_pin.clicked.connect(self.toggle_pin)
+        self.btn_pin.setEnabled(False)
+        self.btn_pin.setStyleSheet("""
+            QPushButton {
+                background-color: #FF9800;
+                color: white;
+                border: none;
+                padding: 10px 20px;
+                font-size: 14px;
+                border-radius: 5px;
+            }
+            QPushButton:hover {
+                background-color: #FB8C00;
+            }
+            QPushButton:disabled {
+                background-color: #cccccc;
+                color: #666666;
+            }
+        """)
+        buttons_layout.addWidget(self.btn_pin)
+        
         self.btn_delete = QPushButton("🗑️ Удалить")
         self.btn_delete.clicked.connect(self.delete_current_note)
         self.btn_delete.setEnabled(False)
@@ -286,12 +326,21 @@ class NotesApp(QMainWindow):
         
         right_layout.addLayout(buttons_layout)
         
-        # Статусная метка внизу (отдельная строка чтобы не сдвигать кнопки)
+        # Статусная метка и статистика внизу
+        status_bar_layout = QHBoxLayout()
+        
         self.status_label = QLabel("")
         self.status_label.setStyleSheet("color: #666666; font-size: 11px; padding: 5px;")
         self.status_label.setWordWrap(True)
-        self.status_label.setMaximumHeight(40)
-        right_layout.addWidget(self.status_label)
+        status_bar_layout.addWidget(self.status_label, stretch=1)
+        
+        # Счетчик статистики
+        self.statistics_label = QLabel("")
+        self.statistics_label.setStyleSheet("color: #666666; font-size: 11px; padding: 5px;")
+        self.statistics_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        status_bar_layout.addWidget(self.statistics_label)
+        
+        right_layout.addLayout(status_bar_layout)
         
         splitter.addWidget(right_panel)
         
@@ -820,12 +869,33 @@ class NotesApp(QMainWindow):
         
         notes = self.store.get_all_notes()
         
-        # Сортировка по времени изменения (новые сверху)
-        notes.sort(key=lambda n: n.last_modified, reverse=True)
+        # Применяем сортировку в зависимости от выбранного режима
+        sort_mode = self.sort_combo.currentText()
+        
+        if sort_mode == "По дате (новые)":
+            # Сначала закрепленные, затем по дате (новые сверху)
+            notes.sort(key=lambda n: (not n.pinned, n.last_modified), reverse=True)
+        elif sort_mode == "По дате (старые)":
+            # Сначала закрепленные, затем по дате (старые сверху)
+            notes.sort(key=lambda n: (not n.pinned, n.last_modified))
+        elif sort_mode == "По алфавиту (А-Я)":
+            # Сначала закрепленные, затем по алфавиту А-Я
+            notes.sort(key=lambda n: (not n.pinned, (n.title or "").lower()))
+        elif sort_mode == "По алфавиту (Я-А)":
+            # Сначала закрепленные, затем по алфавиту Я-А
+            notes.sort(key=lambda n: (not n.pinned, (n.title or "").lower()), reverse=True)
+        elif sort_mode == "По размеру":
+            # Сначала закрепленные, затем по размеру (большие сверху)
+            notes.sort(key=lambda n: (not n.pinned, len(n.body)), reverse=True)
         
         for note in notes:
             # Обрезаем длинные названия для списка
             title = note.title or "(Без заголовка)"
+            
+            # Добавляем индикатор закрепления
+            if note.pinned:
+                title = "📌 " + title
+            
             if len(title) > 50:
                 title = title[:47] + "..."
             
@@ -1076,6 +1146,13 @@ class NotesApp(QMainWindow):
             # Активируем кнопки
             self.btn_save.setEnabled(False)
             self.btn_delete.setEnabled(True)
+            self.btn_pin.setEnabled(True)
+            
+            # Обновляем текст кнопки закрепления
+            if note.pinned:
+                self.btn_pin.setText("📌 Открепить")
+            else:
+                self.btn_pin.setText("📌 Закрепить")
             
             self.has_unsaved_changes = False
             self.update_status(f"Заметка загружена: {note.title}")
@@ -1261,6 +1338,7 @@ class NotesApp(QMainWindow):
                     
                     self.btn_save.setEnabled(False)
                     self.btn_delete.setEnabled(False)
+                    self.btn_pin.setEnabled(False)
                     self.has_unsaved_changes = False
                     
                     # Обновляем список
@@ -1273,6 +1351,40 @@ class NotesApp(QMainWindow):
                     "Ошибка удаления",
                     f"Не удалось удалить заметку:\n{e}"
                 )
+    
+    def toggle_pin(self):
+        """Закрепление/открепление текущей заметки."""
+        if not self.current_note_id:
+            logger.warning("Попытка закрепить, но заметка не выбрана")
+            return
+        
+        note = self.store.get_note(self.current_note_id)
+        if not note:
+            logger.error("Заметка не найдена: %s", self.current_note_id)
+            return
+        
+        # Меняем состояние закрепления
+        note.pinned = not note.pinned
+        
+        # Обновляем версию и время модификации
+        note.version += 1
+        note.last_modified = datetime.now(timezone.utc).isoformat()
+        
+        # Сохраняем
+        self.store.save()
+        
+        # Обновляем UI
+        if note.pinned:
+            self.btn_pin.setText("📌 Открепить")
+            self.update_status(f"Заметка закреплена: {note.title}")
+            logger.info("Заметка закреплена: %s", self.current_note_id[:8])
+        else:
+            self.btn_pin.setText("📌 Закрепить")
+            self.update_status(f"Заметка откреплена: {note.title}")
+            logger.info("Заметка откреплена: %s", self.current_note_id[:8])
+        
+        # Обновляем список с новой сортировкой
+        self.load_notes_list()
     
     def on_text_changed(self):
         """Обработчик изменения текста в редакторе."""
@@ -1304,6 +1416,8 @@ class NotesApp(QMainWindow):
                 
                 # Активируем кнопки
                 self.btn_delete.setEnabled(True)
+                self.btn_pin.setEnabled(True)
+                self.btn_pin.setText("📌 Закрепить")
                 
                 logger.info("Автоматически создана новая заметка: %s", new_note.id[:8])
                 self.update_status("Создана новая заметка")
@@ -1325,6 +1439,30 @@ class NotesApp(QMainWindow):
         
         # Автоматически очищаем статус через 5 секунд
         QTimer.singleShot(5000, lambda: self.status_label.setText(""))
+        
+        # Обновляем статистику
+        self.update_statistics()
+    
+    def update_statistics(self):
+        """Обновление счетчиков статистики."""
+        all_notes = self.store.get_all_notes()
+        
+        total = len(all_notes)
+        active = len([n for n in all_notes if not n.deleted])
+        pinned = len([n for n in all_notes if not n.deleted and n.pinned])
+        deleted = len([n for n in all_notes if n.deleted])
+        
+        # Формируем текст статистики
+        stats_text = f"Всего: {total} | Активных: {active} | Закреплено: {pinned}"
+        if deleted > 0:
+            stats_text += f" | Удалено: {deleted}"
+        
+        self.statistics_label.setText(stats_text)
+    
+    def on_sort_changed(self, index):
+        """Обработчик изменения режима сортировки."""
+        logger.info("Изменена сортировка: %s", self.sort_combo.currentText())
+        self.load_notes_list()
     
     def closeEvent(self, event):
         """Обработчик закрытия окна."""

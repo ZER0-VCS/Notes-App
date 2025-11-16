@@ -42,7 +42,8 @@ class Note:
         last_modified: Optional[str] = None,
         version: int = 1,
         deleted: bool = False,
-        tags: Optional[List[str]] = None
+        tags: Optional[List[str]] = None,
+        pinned: bool = False
     ):
         """
         Инициализация заметки.
@@ -55,6 +56,7 @@ class Note:
             version: Версия заметки
             deleted: Флаг удаления (tombstone для синхронизации)
             tags: Список тегов заметки
+            pinned: Флаг закрепления заметки (закрепленные отображаются сверху)
         """
         self.id = nid or str(uuid.uuid4())
         self.title = title
@@ -63,6 +65,7 @@ class Note:
         self.version = version
         self.deleted = deleted
         self.tags = tags or []
+        self.pinned = pinned
     
     def validate(self) -> bool:
         """
@@ -106,7 +109,8 @@ class Note:
             "last_modified": self.last_modified,
             "deleted": self.deleted,
             "version": self.version,
-            "tags": self.tags
+            "tags": self.tags,
+            "pinned": self.pinned
         }
     
     @staticmethod
@@ -127,7 +131,8 @@ class Note:
             last_modified=data.get("last_modified"),
             version=data.get("version", 1),
             deleted=data.get("deleted", False),
-            tags=data.get("tags", [])
+            tags=data.get("tags", []),
+            pinned=data.get("pinned", False)
         )
     
     def update(self, title: Optional[str] = None, body: Optional[str] = None, tags: Optional[List[str]] = None):
