@@ -379,18 +379,15 @@ class NotesApp(QMainWindow):
             
             # Убираем подсветку текста во всех полях
             if self.current_note_id:
-                # Очищаем подсветку в заголовке
+                # Очищаем выделение в заголовке
                 self.title_edit.deselect()
                 
-                # Очищаем подсветку в теле заметки
+                # Очищаем выделение в теле заметки
                 cursor = self.body_edit.textCursor()
-                cursor.select(QTextCursor.SelectionType.Document)
-                cursor.setCharFormat(QTextCharFormat())
                 cursor.clearSelection()
-                cursor.movePosition(QTextCursor.MoveOperation.Start)
                 self.body_edit.setTextCursor(cursor)
                 
-                # Очищаем подсветку в тегах
+                # Очищаем выделение в тегах
                 self.tags_edit.deselect()
             
             return
@@ -481,48 +478,22 @@ class NotesApp(QMainWindow):
                 # Выделяем текст
                 text_edit.setSelection(pos, len(search_text))
         else:
-            # Для QTextEdit используем QTextCursor
-            cursor = text_edit.textCursor()
-            
-            # Сбрасываем предыдущее форматирование
-            cursor.select(QTextCursor.SelectionType.Document)
-            cursor.setCharFormat(QTextCharFormat())
-            cursor.clearSelection()
-            text_edit.setTextCursor(cursor)
-            
-            # Создаём формат для подсветки
-            highlight_format = QTextCharFormat()
-            highlight_format.setBackground(QColor(255, 235, 59))  # Более темный желтый цвет
-            
-            # Ищем и подсвечиваем все вхождения (регистронезависимо)
-            cursor = text_edit.textCursor()
-            cursor.movePosition(QTextCursor.MoveOperation.Start)
-            
+            # Для QTextEdit выделяем текст (как в QLineEdit)
             text_lower = text.lower()
             search_lower = search_text.lower()
             
-            pos = 0
-            first_found = True
-            while True:
-                pos = text_lower.find(search_lower, pos)
-                if pos == -1:
-                    break
-                
-                # Перемещаем курсор к найденной позиции
+            # Находим первое совпадение
+            pos = text_lower.find(search_lower)
+            if pos != -1:
+                # Создаём курсор и выделяем найденный текст
+                cursor = text_edit.textCursor()
                 cursor.setPosition(pos)
                 cursor.setPosition(pos + len(search_text), QTextCursor.MoveMode.KeepAnchor)
-                cursor.mergeCharFormat(highlight_format)
+                text_edit.setTextCursor(cursor)
                 
-                # Прокручиваем к первому найденному вхождению
-                if scroll_to_first and first_found:
-                    text_edit.setTextCursor(cursor)
-                    first_found = False
-                
-                pos += len(search_text)
-            
-            # Возвращаем курсор в начало
-            cursor.movePosition(QTextCursor.MoveOperation.Start)
-            text_edit.setTextCursor(cursor)
+                # Прокручиваем к найденному тексту если нужно
+                if scroll_to_first:
+                    text_edit.ensureCursorVisible()
     
     def on_note_selected(self, item):
         """Обработчик выбора заметки из списка."""
