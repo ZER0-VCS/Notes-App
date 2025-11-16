@@ -8,7 +8,11 @@ import logging
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Dict, List, Tuple, Optional
-from notes import Note, NoteStore
+
+try:
+    from notes import Note, NoteStore
+except ImportError:
+    from .notes import Note, NoteStore
 
 logger = logging.getLogger(__name__)
 

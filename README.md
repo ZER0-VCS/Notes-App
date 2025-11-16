@@ -132,20 +132,28 @@ python main.py
 
 ```
 Notes-App/
-├── notes.py          # Модель данных (Note, NoteStore)
-├── gui.py            # Графический интерфейс (PySide6)
-├── sync.py           # Менеджер синхронизации
-├── themes.py         # Система управления темами
-├── main.py           # Точка входа в приложение
-├── requirements.txt  # Зависимости
-├── CHANGELOG.md      # История версий
-├── README.md         # Документация
-├── example_themes.py # Пример использования системы тем
-└── tests/            # Тесты
-    ├── test_search.py
-    ├── test_highlight_all_fields.py
-    └── ... (другие тесты)
+├── src/                    # Исходный код приложения
+│   ├── gui.py             # Графический интерфейс (PySide6)
+│   ├── notes.py           # Модель данных (Note, NoteStore)
+│   ├── sync.py            # Менеджер синхронизации
+│   ├── themes.py          # Система управления темами
+│   ├── export.py          # Экспорт заметок
+│   ├── settings_dialog.py # Диалог настроек
+│   └── example_themes.py  # Примеры использования тем
+├── docs/                   # Документация
+│   ├── CHANGELOG.md       # История версий
+│   ├── ROADMAP.md         # План развития
+│   └── ... (другая документация)
+├── tests/                  # Тесты
+│   ├── test_v050_features.py
+│   ├── test_search.py
+│   └── ... (другие тесты)
+├── main.py                # Точка входа
+├── requirements.txt       # Зависимости
+└── README.md              # Документация
 ```
+
+Подробнее см. [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)
 
 ## 🏗️ Архитектура
 

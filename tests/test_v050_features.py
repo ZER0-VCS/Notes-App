@@ -7,9 +7,13 @@ import sys
 import logging
 import time
 from pathlib import Path
+
+# Добавляем путь к src
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import QTimer
-from gui import NotesApp
+from src.gui import NotesApp
 import json
 
 logging.basicConfig(

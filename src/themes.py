@@ -58,7 +58,7 @@ class ThemeManager:
     # Светлая тема (по умолчанию)
     LIGHT_THEME = Theme(
         name="Светлая",
-        background="#FFFFFF",
+        background="#F5F5F5",
         text="#000000",
         
         button_background="#0078D4",
@@ -69,11 +69,11 @@ class ThemeManager:
         delete_button_background="#F44336",
         delete_button_hover="#DA190B",
         
-        input_background="#FFFFFF",
+        input_background="#FAFAFA",
         input_text="#000000",
-        input_border="#CCCCCC",
+        input_border="#D0D0D0",
         
-        list_background="#FFFFFF",
+        list_background="#FAFAFA",
         list_text="#000000",
         list_selected="#0078D4",
         list_hover="#E5F3FF",

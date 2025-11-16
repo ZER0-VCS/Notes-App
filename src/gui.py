@@ -14,9 +14,15 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QTimer, Signal, QObject
 import threading
 from PySide6.QtGui import QFont, QShortcut, QKeySequence, QTextCharFormat, QColor, QTextCursor, QPalette
-from notes import Note, NoteStore
-from sync import SyncManager
-from themes import theme_manager
+
+try:
+    from notes import Note, NoteStore
+    from sync import SyncManager
+    from themes import theme_manager
+except ImportError:
+    from .notes import Note, NoteStore
+    from .sync import SyncManager
+    from .themes import theme_manager
 
 logger = logging.getLogger(__name__)
 
@@ -625,6 +631,13 @@ class NotesApp(QMainWindow):
             theme = self.theme_manager.get_theme(theme_name)
             self.current_theme = theme
             
+            # Сохраняем текущие шрифты перед применением темы
+            title_font = self.title_edit.font()
+            body_font = self.body_edit.font()
+            list_font = self.notes_list.font()
+            search_font = self.search_box.font()
+            tags_font = self.tags_edit.font()
+            
             # Применяем цвета темы к основным элементам
             palette = self.palette()
             palette.setColor(self.backgroundRole(), QColor(theme.background))
@@ -661,6 +674,13 @@ class NotesApp(QMainWindow):
                     background-color: transparent;
                 }}
             """)
+            
+            # Восстанавливаем шрифты после применения стилей
+            self.title_edit.setFont(title_font)
+            self.body_edit.setFont(body_font)
+            self.notes_list.setFont(list_font)
+            self.search_box.setFont(search_font)
+            self.tags_edit.setFont(tags_font)
             
             logger.info(f"Тема применена в реальном времени: {theme_name}")
         except Exception as e:
@@ -948,10 +968,9 @@ class NotesApp(QMainWindow):
             cursor.clearSelection()
             text_edit.setTextCursor(cursor)
             
-            # Получаем системный цвет выделения из темы
-            palette = QPalette()
-            highlight_color = palette.color(QPalette.ColorRole.Highlight)
-            highlight_text_color = palette.color(QPalette.ColorRole.HighlightedText)
+            # Получаем цвет выделения из текущей темы
+            highlight_color = QColor(self.current_theme.search_highlight)
+            highlight_text_color = QColor(self.current_theme.search_highlight_text)
             
             # Создаём формат для подсветки
             highlight_format = QTextCharFormat()
