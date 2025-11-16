@@ -315,8 +315,15 @@ class NotesApp(QMainWindow):
         QShortcut(QKeySequence.Find, self).activated.connect(self.focus_search)
         logger.info("Горячая клавиша Ctrl+F настроена")
     
-    def load_notes_list(self):
-        """Загрузка списка заметок в QListWidget."""
+    def load_notes_list(self, reload_current_note: bool = False):
+        """Загрузка списка заметок в QListWidget.
+        
+        Args:
+            reload_current_note: Если True, перезагружает текущую открытую заметку после обновления списка
+        """
+        # Сохраняем ID текущей заметки для возможной перезагрузки
+        current_note_id = self.current_note_id if reload_current_note else None
+        
         self.notes_list.clear()
         
         notes = self.store.get_all_notes()
@@ -342,6 +349,13 @@ class NotesApp(QMainWindow):
         # Применяем текущий фильтр поиска (если есть)
         if self.search_box.text():
             self.filter_notes(self.search_box.text())
+        
+        # Перезагружаем текущую заметку, если она была открыта
+        if current_note_id:
+            note = self.store.get_note(current_note_id)
+            if note:
+                # Перезагружаем с блокировкой сигналов, чтобы не вызвать has_unsaved_changes
+                self.load_note(current_note_id)
     
     def filter_notes(self, search_text: str = ""):
         """Фильтрация списка заметок по поисковому запросу."""
@@ -836,7 +850,8 @@ class NotesApp(QMainWindow):
         
         try:
             if success:
-                self.load_notes_list()
+                # Перезагружаем список и текущую заметку (если открыта)
+                self.load_notes_list(reload_current_note=True)
                 
                 if is_manual:
                     # Ручная синхронизация - показываем модальные окна
