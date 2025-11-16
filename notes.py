@@ -41,7 +41,8 @@ class Note:
         body: str = "",
         last_modified: Optional[str] = None,
         version: int = 1,
-        deleted: bool = False
+        deleted: bool = False,
+        tags: Optional[List[str]] = None
     ):
         """
         Инициализация заметки.
@@ -53,6 +54,7 @@ class Note:
             last_modified: Время последнего изменения (если None, используется текущее время)
             version: Версия заметки
             deleted: Флаг удаления (tombstone для синхронизации)
+            tags: Список тегов заметки
         """
         self.id = nid or str(uuid.uuid4())
         self.title = title
@@ -60,6 +62,7 @@ class Note:
         self.last_modified = last_modified or datetime.now(timezone.utc).isoformat()
         self.version = version
         self.deleted = deleted
+        self.tags = tags or []
     
     def validate(self) -> bool:
         """
@@ -102,7 +105,8 @@ class Note:
             "body": self.body,
             "last_modified": self.last_modified,
             "deleted": self.deleted,
-            "version": self.version
+            "version": self.version,
+            "tags": self.tags
         }
     
     @staticmethod
@@ -122,21 +126,25 @@ class Note:
             body=data.get("body", ""),
             last_modified=data.get("last_modified"),
             version=data.get("version", 1),
-            deleted=data.get("deleted", False)
+            deleted=data.get("deleted", False),
+            tags=data.get("tags", [])
         )
     
-    def update(self, title: Optional[str] = None, body: Optional[str] = None):
+    def update(self, title: Optional[str] = None, body: Optional[str] = None, tags: Optional[List[str]] = None):
         """
         Обновление заметки с автоматическим увеличением версии и времени изменения.
         
         Args:
             title: Новый заголовок (если None, остается прежним)
             body: Новый текст (если None, остается прежним)
+            tags: Новые теги (если None, остаются прежними)
         """
         if title is not None:
             self.title = title
         if body is not None:
             self.body = body
+        if tags is not None:
+            self.tags = tags
         
         self.last_modified = datetime.now(timezone.utc).isoformat()
         self.version += 1
@@ -192,7 +200,7 @@ class NoteStore:
         logger.info("Добавлена заметка: %s", note.id[:8])
         self.save()
     
-    def update_note(self, note_id: str, title: Optional[str] = None, body: Optional[str] = None) -> bool:
+    def update_note(self, note_id: str, title: Optional[str] = None, body: Optional[str] = None, tags: Optional[List[str]] = None) -> bool:
         """
         Обновление существующей заметки.
         
@@ -200,12 +208,13 @@ class NoteStore:
             note_id: ID заметки для обновления
             title: Новый заголовок (опционально)
             body: Новый текст (опционально)
+            tags: Новые теги (опционально)
             
         Returns:
             bool: True если заметка обновлена, False если заметка не найдена
         """
         if note_id in self.notes:
-            self.notes[note_id].update(title=title, body=body)
+            self.notes[note_id].update(title=title, body=body, tags=tags)
             self.save()
             return True
         return False
@@ -294,6 +303,18 @@ class NoteStore:
             List[Note]: Список всех заметок
         """
         return list(self.notes.values())
+    
+    def get_all_tags(self) -> List[str]:
+        """
+        Получение всех уникальных тегов из активных заметок.
+        
+        Returns:
+            List[str]: Отсортированный список уникальных тегов
+        """
+        tags_set = set()
+        for note in self.get_all_notes():
+            tags_set.update(note.tags)
+        return sorted(tags_set)
     
     def save(self) -> None:
         """

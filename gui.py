@@ -101,11 +101,25 @@ class NotesApp(QMainWindow):
         title_label.setFont(title_font)
         left_layout.addWidget(title_label)
         
+        # Поле поиска
+        self.search_box = QLineEdit()
+        self.search_box.setPlaceholderText("🔍 Поиск по заголовку и тексту...")
+        self.search_box.textChanged.connect(self.filter_notes)
+        self.search_box.setClearButtonEnabled(True)  # Кнопка очистки
+        left_layout.addWidget(self.search_box)
+        
+        # Метка с количеством результатов
+        self.search_results_label = QLabel("")
+        self.search_results_label.setStyleSheet("color: #666666; font-size: 10px; padding: 2px;")
+        left_layout.addWidget(self.search_results_label)
+        
         # Список заметок
         self.notes_list = QListWidget()
         self.notes_list.itemClicked.connect(self.on_note_selected)
         # Ограничение ширины для предотвращения растягивания окна
         self.notes_list.setMaximumWidth(400)
+        # Добавляем отступы между заметками для лучшей читаемости
+        self.notes_list.setSpacing(4)
         left_layout.addWidget(self.notes_list)
         
         # Кнопка "Создать новую заметку"
@@ -145,6 +159,16 @@ class NotesApp(QMainWindow):
         # Ограничение ширины для предотвращения растягивания окна
         self.title_edit.setMaximumWidth(800)
         right_layout.addWidget(self.title_edit)
+        
+        # Теги заметки
+        tags_label = QLabel("Теги (через запятую):")
+        right_layout.addWidget(tags_label)
+        
+        self.tags_edit = QLineEdit()
+        self.tags_edit.setPlaceholderText("работа, личное, важное...")
+        self.tags_edit.textChanged.connect(self.on_text_changed)
+        self.tags_edit.setMaximumWidth(800)
+        right_layout.addWidget(self.tags_edit)
         
         # Текст заметки
         body_label = QLabel("Текст:")
@@ -254,6 +278,24 @@ class NotesApp(QMainWindow):
 
         # Флаг синхронизации (предотвращает параллельные запуски)
         self._sync_in_progress = False
+        self._is_manual_sync = False  # Флаг для различения ручной и автосинхронизации
+        
+        # Таймер автосохранения
+        self.autosave_timer = QTimer()
+        self.autosave_timer.setSingleShot(True)  # Однократный запуск после каждого изменения
+        self.autosave_timer.timeout.connect(self.autosave_current_note)
+        self.autosave_delay = 5000  # 5 секунд в миллисекундах
+        
+        # Таймер автосинхронизации
+        self.autosync_timer = QTimer()
+        self.autosync_timer.timeout.connect(self.auto_sync_notes)
+        self.autosync_interval = 60000  # 60 секунд в миллисекундах
+        self.autosync_enabled = False  # По умолчанию выключена
+        
+        # Запускаем автосинхронизацию, если настроена папка облака
+        if self.sync_manager.cloud_path:
+            self.enable_autosync()
+            logger.info("Автосинхронизация включена (интервал: 60 сек)")
     
     def setup_shortcuts(self):
         """Настройка горячих клавиш."""
@@ -268,6 +310,10 @@ class NotesApp(QMainWindow):
         # Ctrl+D - Удалить
         QShortcut(QKeySequence("Ctrl+D"), self).activated.connect(self.delete_current_note)
         logger.info("Горячая клавиша Ctrl+D настроена")
+        
+        # Ctrl+F - Поиск
+        QShortcut(QKeySequence.Find, self).activated.connect(self.focus_search)
+        logger.info("Горячая клавиша Ctrl+F настроена")
     
     def load_notes_list(self):
         """Загрузка списка заметок в QListWidget."""
@@ -279,7 +325,7 @@ class NotesApp(QMainWindow):
         notes.sort(key=lambda n: n.last_modified, reverse=True)
         
         for note in notes:
-            # Обрезаем длинные названия для списка
+            # Обрезаем длинные названия для списка (показываем начало)
             title = note.title or "(Без заголовка)"
             if len(title) > 50:
                 title = title[:47] + "..."
@@ -292,6 +338,75 @@ class NotesApp(QMainWindow):
         
         # Обновление статуса
         self.update_status(f"Загружено заметок: {len(notes)}")
+        
+        # Применяем текущий фильтр поиска (если есть)
+        if self.search_box.text():
+            self.filter_notes(self.search_box.text())
+    
+    def filter_notes(self, search_text: str = ""):
+        """Фильтрация списка заметок по поисковому запросу."""
+        search_text = search_text.lower().strip()
+        
+        if not search_text:
+            # Показываем все заметки
+            for i in range(self.notes_list.count()):
+                self.notes_list.item(i).setHidden(False)
+            self.search_results_label.setText("")
+            return
+        
+        # Получаем все заметки для поиска по телу
+        all_notes = self.store.get_all_notes()
+        notes_dict = {note.id: note for note in all_notes}
+        
+        visible_count = 0
+        
+        for i in range(self.notes_list.count()):
+            item = self.notes_list.item(i)
+            note_id = item.data(Qt.UserRole)
+            note = notes_dict.get(note_id)
+            
+            if note:
+                # Поиск в заголовке, тексте и тегах (регистронезависимый)
+                title_match = search_text in note.title.lower()
+                body_match = search_text in note.body.lower()
+                tags_match = any(search_text in tag.lower() for tag in note.tags)
+                
+                if title_match or body_match or tags_match:
+                    item.setHidden(False)
+                    visible_count += 1
+                    
+                    # Подсветка найденного сегмента
+                    match_info = []
+                    if title_match:
+                        match_info.append("📝 заголовок")
+                    if body_match:
+                        match_info.append("📄 текст")
+                    if tags_match:
+                        matched_tags = [tag for tag in note.tags if search_text in tag.lower()]
+                        match_info.append(f"🏷️ тег: {', '.join(matched_tags)}")
+                    
+                    # Обновляем подсказку с информацией о совпадении
+                    original_tooltip = note.title or "(Без заголовка)"
+                    match_text = " | ".join(match_info)
+                    item.setToolTip(f"{original_tooltip}\n\n✨ Найдено в: {match_text}")
+                else:
+                    item.setHidden(True)
+            else:
+                item.setHidden(True)
+        
+        # Обновляем счётчик результатов
+        if visible_count == 0:
+            self.search_results_label.setText(f"❌ Ничего не найдено")
+        elif visible_count == 1:
+            self.search_results_label.setText(f"✅ Найдена 1 заметка")
+        else:
+            self.search_results_label.setText(f"✅ Найдено заметок: {visible_count}")
+    
+    def focus_search(self):
+        """Установка фокуса на поле поиска (Ctrl+F)."""
+        self.search_box.setFocus()
+        self.search_box.selectAll()
+        logger.info("Фокус установлен на поле поиска")
     
     def on_note_selected(self, item):
         """Обработчик выбора заметки из списка."""
@@ -315,6 +430,9 @@ class NotesApp(QMainWindow):
     
     def load_note(self, note_id):
         """Загрузка заметки в редактор."""
+        # Останавливаем таймер автосохранения для предыдущей заметки
+        self.autosave_timer.stop()
+        
         note = self.store.get_note(note_id)
         
         if note:
@@ -323,12 +441,16 @@ class NotesApp(QMainWindow):
             # Блокируем сигналы, чтобы избежать пометки как "измененное"
             self.title_edit.blockSignals(True)
             self.body_edit.blockSignals(True)
+            self.tags_edit.blockSignals(True)
             
             self.title_edit.setText(note.title)
             self.body_edit.setText(note.body)
+            # Конвертируем список тегов в строку через запятую
+            self.tags_edit.setText(", ".join(note.tags))
             
             self.title_edit.blockSignals(False)
             self.body_edit.blockSignals(False)
+            self.tags_edit.blockSignals(False)
             
             # Активируем кнопки
             self.btn_save.setEnabled(False)
@@ -388,9 +510,12 @@ class NotesApp(QMainWindow):
         try:
             title = self.title_edit.text()
             body = self.body_edit.toPlainText()
+            # Парсим теги из текста (разделитель - запятая)
+            tags_text = self.tags_edit.text()
+            tags = [tag.strip() for tag in tags_text.split(",") if tag.strip()]
             
             # Обновляем заметку
-            success = self.store.update_note(self.current_note_id, title=title, body=body)
+            success = self.store.update_note(self.current_note_id, title=title, body=body, tags=tags)
             
             if success:
                 self.has_unsaved_changes = False
@@ -414,6 +539,44 @@ class NotesApp(QMainWindow):
                 f"Не удалось сохранить заметку:\n{e}"
             )
     
+    def autosave_current_note(self):
+        """Автоматическое сохранение текущей заметки по таймеру."""
+        if not self.current_note_id or not self.has_unsaved_changes:
+            return
+        
+        try:
+            title = self.title_edit.text()
+            body = self.body_edit.toPlainText()
+            # Парсим теги из текста (разделитель - запятая)
+            tags_text = self.tags_edit.text()
+            tags = [tag.strip() for tag in tags_text.split(",") if tag.strip()]
+            
+            # Обновляем заметку
+            success = self.store.update_note(self.current_note_id, title=title, body=body, tags=tags)
+            
+            if success:
+                self.has_unsaved_changes = False
+                self.btn_save.setEnabled(False)
+                self.load_notes_list()
+                
+                # Получаем текущее время для отображения
+                from datetime import datetime
+                current_time = datetime.now().strftime("%H:%M:%S")
+                self.update_status(f"💾 Автоматически сохранено в {current_time}")
+                logger.info("Заметка автоматически сохранена: %s", self.current_note_id[:8])
+                
+                # Автоматически выбираем обновленную заметку в списке
+                for i in range(self.notes_list.count()):
+                    item = self.notes_list.item(i)
+                    if item.data(Qt.UserRole) == self.current_note_id:
+                        self.notes_list.setCurrentItem(item)
+                        break
+        
+        except Exception as e:
+            logger.error("Ошибка при автосохранении заметки: %s", e)
+            # Не показываем модальный диалог для автосохранения, только логируем
+            self.update_status("⚠️ Ошибка автосохранения")
+    
     def delete_current_note(self):
         """Удаление текущей заметки."""
         if not self.current_note_id:
@@ -430,6 +593,9 @@ class NotesApp(QMainWindow):
         
         if reply == QMessageBox.Yes:
             try:
+                # Останавливаем таймер автосохранения
+                self.autosave_timer.stop()
+                
                 note_title = self.title_edit.text() or "(Без заголовка)"
                 note_id = self.current_note_id
                 success = self.store.delete_note(self.current_note_id)
@@ -442,6 +608,7 @@ class NotesApp(QMainWindow):
                     self.current_note_id = None
                     self.title_edit.clear()
                     self.body_edit.clear()
+                    self.tags_edit.clear()
                     self.btn_save.setEnabled(False)
                     self.btn_delete.setEnabled(False)
                     self.has_unsaved_changes = False
@@ -463,6 +630,10 @@ class NotesApp(QMainWindow):
             self.has_unsaved_changes = True
             self.btn_save.setEnabled(True)
             self.update_status("Есть несохраненные изменения")
+            
+            # Перезапускаем таймер автосохранения
+            self.autosave_timer.stop()  # Останавливаем предыдущий таймер
+            self.autosave_timer.start(self.autosave_delay)  # Запускаем новый отсчёт
     
     def update_status(self, message):
         """Обновление статусного сообщения."""
@@ -505,6 +676,10 @@ class NotesApp(QMainWindow):
             if self.sync_manager.set_cloud_path(path):
                 self.update_status(f"Папка синхронизации: {path.name}")
                 logger.info("Настроена папка синхронизации: %s", path)
+                
+                # Включаем автосинхронизацию при настройке папки
+                self.enable_autosync()
+                
                 return True
             else:
                 QMessageBox.warning(
@@ -544,6 +719,7 @@ class NotesApp(QMainWindow):
 
         # Запускаем фоновый поток синхронизации
         self._sync_in_progress = True
+        self._is_manual_sync = True  # Помечаем как ручную синхронизацию
         self.update_status("Синхронизация...")
         self.btn_sync.setEnabled(False)
         self.btn_sync_settings.setEnabled(False)
@@ -563,34 +739,52 @@ class NotesApp(QMainWindow):
 
     def _on_sync_complete(self, success: bool, synced_count: int, conflict_count: int):
         """Обработчик завершения синхронизации (главный поток)."""
+        # Проверяем, была ли это ручная синхронизация
+        is_manual = self._is_manual_sync
+        
         # ВАЖНО: Сначала разблокируем кнопки, потом показываем диалоги
         # Иначе модальный диалог может заблокировать выполнение finally
         self._sync_in_progress = False
+        self._is_manual_sync = False
         self.btn_sync.setEnabled(True)
         self.btn_sync_settings.setEnabled(True)
         
         try:
             if success:
                 self.load_notes_list()
-                logger.info("Фоновая синхронизация успешна: %d заметок, %d конфликтов", synced_count, conflict_count)
                 
-                if conflict_count > 0:
-                    self.update_status(f"Синхронизация: {synced_count} заметок, {conflict_count} конфликтов")
-                    QMessageBox.warning(
-                        self,
-                        "Синхронизация завершена",
-                        f"Синхронизировано: {synced_count} заметок\n⚠️ Обнаружено конфликтов: {conflict_count}\n\nЗаметки с конфликтами помечены префиксом ⚠️"
-                    )
+                if is_manual:
+                    # Ручная синхронизация - показываем модальные окна
+                    logger.info("Фоновая синхронизация успешна: %d заметок, %d конфликтов", synced_count, conflict_count)
+                    
+                    if conflict_count > 0:
+                        self.update_status(f"Синхронизация: {synced_count} заметок, {conflict_count} конфликтов")
+                        QMessageBox.warning(
+                            self,
+                            "Синхронизация завершена",
+                            f"Синхронизировано: {synced_count} заметок\n⚠️ Обнаружено конфликтов: {conflict_count}\n\nЗаметки с конфликтами помечены префиксом ⚠️"
+                        )
+                    else:
+                        self.update_status(f"Синхронизировано: {synced_count} заметок")
+                        QMessageBox.information(
+                            self,
+                            "Синхронизация завершена",
+                            f"Успешно синхронизировано {synced_count} заметок"
+                        )
                 else:
-                    self.update_status(f"Синхронизировано: {synced_count} заметок")
-                    QMessageBox.information(
-                        self,
-                        "Синхронизация завершена",
-                        f"Успешно синхронизировано {synced_count} заметок"
-                    )
+                    # Автосинхронизация - только статус без модальных окон
+                    logger.info("Автосинхронизация успешна: %d заметок, %d конфликтов", synced_count, conflict_count)
+                    
+                    if conflict_count > 0:
+                        self.update_status(f"⚠️ Автосинхронизация: {synced_count} заметок, {conflict_count} конфликтов")
+                    else:
+                        self.update_status(f"✅ Автосинхронизация: {synced_count} заметок")
             else:
-                self.update_status("Ошибка синхронизации")
-                QMessageBox.critical(self, "Ошибка синхронизации", "Не удалось выполнить синхронизацию.\nПроверьте логи для деталей.")
+                if is_manual:
+                    self.update_status("Ошибка синхронизации")
+                    QMessageBox.critical(self, "Ошибка синхронизации", "Не удалось выполнить синхронизацию.\nПроверьте логи для деталей.")
+                else:
+                    self.update_status("⚠️ Ошибка автосинхронизации")
                 logger.error("Синхронизация не удалась")
         except Exception as e:
             logger.error("Ошибка в обработчике завершения синхронизации: %s", e)
@@ -603,6 +797,55 @@ class NotesApp(QMainWindow):
         self._sync_in_progress = False
         self.btn_sync.setEnabled(True)
         self.btn_sync_settings.setEnabled(True)
+    
+    def enable_autosync(self):
+        """Включение автоматической синхронизации."""
+        if not self.autosync_enabled and self.sync_manager.cloud_path:
+            self.autosync_timer.start(self.autosync_interval)
+            self.autosync_enabled = True
+            logger.info("Автосинхронизация включена (интервал: %d сек)", self.autosync_interval // 1000)
+    
+    def disable_autosync(self):
+        """Отключение автоматической синхронизации."""
+        if self.autosync_enabled:
+            self.autosync_timer.stop()
+            self.autosync_enabled = False
+            logger.info("Автосинхронизация отключена")
+    
+    def auto_sync_notes(self):
+        """Автоматическая фоновая синхронизация без модальных окон."""
+        # Не запускаем, если уже идёт синхронизация
+        if self._sync_in_progress:
+            logger.debug("Автосинхронизация пропущена - синхронизация уже выполняется")
+            return
+        
+        # Проверка настройки облачной папки
+        if not self.sync_manager.cloud_path:
+            logger.debug("Автосинхронизация пропущена - папка не настроена")
+            self.disable_autosync()
+            return
+        
+        # Сохраняем текущую заметку перед синхронизацией (если есть изменения)
+        if self.has_unsaved_changes and self.current_note_id:
+            self.autosave_current_note()
+        
+        # Запускаем фоновую синхронизацию
+        self._sync_in_progress = True
+        self._is_manual_sync = False  # Помечаем как автосинхронизацию
+        self.update_status("🔄 Автосинхронизация...")
+        
+        def worker():
+            try:
+                logger.info("Автосинхронизация запущена")
+                success, synced_count, conflict_count = self.sync_manager.sync()
+                # Передаём результат в главный поток через тот же сигнал
+                self.sync_signals.completed.emit(success, synced_count, conflict_count)
+            except Exception as e:
+                logger.error("Ошибка в фоновом потоке автосинхронизации: %s", e)
+                self.sync_signals.error.emit(e)
+        
+        thread = threading.Thread(target=worker, daemon=True)
+        thread.start()
 
 
 def main():
