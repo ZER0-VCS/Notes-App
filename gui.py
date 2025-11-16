@@ -51,7 +51,10 @@ class NotesApp(QMainWindow):
         
         # Инициализация темы оформления
         self.theme_manager = theme_manager
-        self.current_theme = self.theme_manager.LIGHT_THEME
+        # Загружаем сохраненную тему
+        saved_theme = self._load_theme_config()
+        self.current_theme = self.theme_manager.get_theme(saved_theme)
+        logger.info(f"Загружена тема: {saved_theme}")
         
         # Инициализация менеджера синхронизации
         self.sync_manager = SyncManager(self.store)
@@ -77,6 +80,9 @@ class NotesApp(QMainWindow):
         
         # Настройка горячих клавиш
         self.setup_shortcuts()
+        
+        # Создание меню
+        self.create_menu_bar()
         
         # Загрузка заметок
         self.load_notes_list()
@@ -319,6 +325,119 @@ class NotesApp(QMainWindow):
         # Ctrl+F - Поиск
         QShortcut(QKeySequence.Find, self).activated.connect(self.focus_search)
         logger.info("Горячая клавиша Ctrl+F настроена")
+    
+    def create_menu_bar(self):
+        """Создание меню приложения."""
+        from PySide6.QtWidgets import QMenuBar
+        from PySide6.QtGui import QActionGroup, QAction
+        
+        menubar = self.menuBar()
+        
+        # Меню "Вид"
+        view_menu = menubar.addMenu("&Вид")
+        
+        # Подменю "Тема"
+        theme_menu = view_menu.addMenu("Тема")
+        
+        # Группа для radio buttons
+        theme_group = QActionGroup(self)
+        theme_group.setExclusive(True)
+        
+        # Получаем доступные темы
+        available_themes = self.theme_manager.get_available_themes()
+        
+        for theme_id, theme_display_name in available_themes:
+            action = QAction(theme_display_name, self)
+            action.setCheckable(True)
+            
+            # Отмечаем текущую тему
+            if theme_id == self.current_theme.name or theme_display_name == self.current_theme.name:
+                action.setChecked(True)
+            
+            # Подключаем обработчик
+            action.triggered.connect(
+                lambda checked, tid=theme_id: self.change_theme(tid)
+            )
+            
+            theme_group.addAction(action)
+            theme_menu.addAction(action)
+        
+        logger.info("Меню создано")
+    
+    def change_theme(self, theme_name: str):
+        """
+        Изменить тему оформления.
+        
+        Args:
+            theme_name: Имя темы
+        """
+        try:
+            self.apply_theme(theme_name)
+            logger.info(f"Тема изменена на: {theme_name}")
+            
+            # Сохраняем выбор темы в config.json
+            self._save_theme_config(theme_name)
+            
+            QMessageBox.information(
+                self,
+                "Тема изменена",
+                f"Тема '{theme_name}' будет полностью применена после перезапуска приложения."
+            )
+        except Exception as e:
+            logger.error(f"Ошибка при изменении темы: {e}")
+            QMessageBox.critical(
+                self,
+                "Ошибка",
+                f"Не удалось изменить тему:\n{e}"
+            )
+    
+    def _load_theme_config(self) -> str:
+        """
+        Загрузить настройку темы из config.json.
+        
+        Returns:
+            Имя темы или "light" по умолчанию
+        """
+        import json
+        config_path = Path.home() / ".notes_app" / "config.json"
+        try:
+            if config_path.exists():
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                    theme = config.get('theme', 'light')
+                    logger.info(f"Загружена тема из конфига: {theme}")
+                    return theme
+        except Exception as e:
+            logger.warning(f"Не удалось загрузить тему из конфига: {e}")
+        return "light"
+    
+    def _save_theme_config(self, theme_name: str):
+        """
+        Сохранить настройку темы в config.json.
+        
+        Args:
+            theme_name: Имя темы
+        """
+        import json
+        config_path = Path.home() / ".notes_app" / "config.json"
+        try:
+            # Загружаем существующий конфиг
+            config = {}
+            if config_path.exists():
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+            
+            # Обновляем тему
+            config['theme'] = theme_name
+            
+            # Сохраняем
+            config_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(config_path, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=2, ensure_ascii=False)
+            
+            logger.info(f"Тема сохранена в конфиг: {theme_name}")
+        except Exception as e:
+            logger.error(f"Не удалось сохранить тему в конфиг: {e}")
     
     def apply_theme(self, theme_name: str = "light"):
         """
