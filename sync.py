@@ -53,6 +53,11 @@ class SyncManager:
         self.local_store = local_store
         self.cloud_path = cloud_path
         self.conflicts: List[SyncConflict] = []
+        self.config_path = Path.home() / ".notes_app" / "config.json"
+        
+        # Загрузка конфигурации (в т.ч. сохраненного пути к облаку)
+        if not cloud_path:
+            self._load_config()
         
         logger.info("SyncManager инициализирован")
     
@@ -77,6 +82,7 @@ class SyncManager:
                 return False
             
             self.cloud_path = path
+            self._save_config()
             logger.info("Установлен путь к облачной папке: %s", path)
             return True
         
@@ -348,6 +354,32 @@ class SyncManager:
         except Exception as e:
             logger.error("Ошибка при синхронизации: %s", e)
             return False, 0, 0
+    
+    def _load_config(self):
+        """Загрузка конфигурации из файла."""
+        try:
+            if self.config_path.exists():
+                with open(self.config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                    cloud_path_str = config.get('cloud_path')
+                    if cloud_path_str:
+                        self.cloud_path = Path(cloud_path_str)
+                        logger.info("Загружен путь к облаку из конфига: %s", self.cloud_path)
+        except Exception as e:
+            logger.warning("Не удалось загрузить конфигурацию: %s", e)
+    
+    def _save_config(self):
+        """Сохранение конфигурации в файл."""
+        try:
+            self.config_path.parent.mkdir(parents=True, exist_ok=True)
+            config = {
+                'cloud_path': str(self.cloud_path) if self.cloud_path else None
+            }
+            with open(self.config_path, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=2, ensure_ascii=False)
+            logger.info("Конфигурация сохранена")
+        except Exception as e:
+            logger.error("Не удалось сохранить конфигурацию: %s", e)
 
 
 if __name__ == "__main__":

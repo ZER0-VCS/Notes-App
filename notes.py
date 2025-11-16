@@ -69,8 +69,8 @@ class Note:
             logger.error("Некорректный ID заметки")
             return False
         
-        if not isinstance(self.title, str) or len(self.title) > 500:
-            logger.error("Некорректный заголовок заметки")
+        if not isinstance(self.title, str) or len(self.title) > 100:
+            logger.error("Некорректный заголовок заметки (макс. 100 символов)")
             return False
         
         if not isinstance(self.body, str) or len(self.body) > 1_000_000:  # 1MB текста

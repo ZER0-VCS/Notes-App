@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QSplitter, QMessageBox, QLabel, QFileDialog
 )
 from PySide6.QtCore import Qt, QTimer
+import threading
 from PySide6.QtGui import QFont, QShortcut, QKeySequence
 from notes import Note, NoteStore
 from sync import SyncManager
@@ -119,6 +120,8 @@ class NotesApp(QMainWindow):
         self.title_edit = QLineEdit()
         self.title_edit.setPlaceholderText("Введите заголовок заметки...")
         self.title_edit.setFont(QFont("Arial", 14))
+        # Ограничение длины заголовка
+        self.title_edit.setMaxLength(100)
         self.title_edit.textChanged.connect(self.on_text_changed)
         right_layout.addWidget(self.title_edit)
         
@@ -198,7 +201,14 @@ class NotesApp(QMainWindow):
             }
         """)
         buttons_layout.addWidget(self.btn_sync)
-        
+
+        # Кнопка настроек синхронизации (смена папки) - всегда доступна
+        self.btn_sync_settings = QPushButton("⚙️")
+        self.btn_sync_settings.setFixedWidth(36)
+        self.btn_sync_settings.clicked.connect(self.setup_sync_path)
+        self.btn_sync_settings.setToolTip("Изменить папку синхронизации")
+        buttons_layout.addWidget(self.btn_sync_settings)
+
         # Статусная метка
         self.status_label = QLabel("")
         self.status_label.setStyleSheet("color: #666666; font-size: 11px;")
@@ -216,6 +226,9 @@ class NotesApp(QMainWindow):
         
         # Флаг изменений
         self.has_unsaved_changes = False
+
+        # Флаг синхронизации (предотвращает параллельные запуски)
+        self._sync_in_progress = False
     
     def setup_shortcuts(self):
         """Настройка горячих клавиш."""
@@ -472,6 +485,12 @@ class NotesApp(QMainWindow):
     
     def sync_notes(self):
         """Выполнение синхронизации заметок."""
+        # Асинхронная синхронизация (чтобы UI не зависал при длительных операциях
+        # вроде скачивания файлов OneDrive). Запускается в отдельном потоке.
+        if self._sync_in_progress:
+            QMessageBox.information(self, "Синхронизация", "Синхронизация уже выполняется")
+            return
+
         # Проверка настройки облачной папки
         if not self.sync_manager.cloud_path:
             reply = QMessageBox.question(
@@ -480,37 +499,47 @@ class NotesApp(QMainWindow):
                 "Папка облачной синхронизации не настроена.\nХотите выбрать папку?",
                 QMessageBox.Yes | QMessageBox.No
             )
-            
+
             if reply == QMessageBox.Yes:
                 if not self.setup_sync_path():
                     return
             else:
                 return
-        
+
         # Сохраняем текущую заметку перед синхронизацией
         if self.has_unsaved_changes and self.current_note_id:
             self.save_current_note()
-        
+
+        # Запускаем фоновый поток синхронизации
+        self._sync_in_progress = True
+        self.update_status("Синхронизация...")
+        self.btn_sync.setEnabled(False)
+        self.btn_sync_settings.setEnabled(False)
+
+        def worker():
+            try:
+                logger.info("Фоновая синхронизация запущена")
+                success, synced_count, conflict_count = self.sync_manager.sync()
+                # Передаём результат в главный поток
+                QTimer.singleShot(0, lambda: self._on_sync_complete(success, synced_count, conflict_count))
+            except Exception as e:
+                logger.error("Ошибка в фоновом потоке синхронизации: %s", e)
+                QTimer.singleShot(0, lambda: self._on_sync_error(e))
+
+        thread = threading.Thread(target=worker, daemon=True)
+        thread.start()
+
+    def _on_sync_complete(self, success: bool, synced_count: int, conflict_count: int):
+        """Обработчик завершения синхронизации (главный поток)."""
         try:
-            self.update_status("Синхронизация...")
-            self.btn_sync.setEnabled(False)
-            logger.info("Начало синхронизации")
-            
-            # Выполняем синхронизацию
-            success, synced_count, conflict_count = self.sync_manager.sync()
-            
             if success:
-                # Обновляем список заметок
                 self.load_notes_list()
-                
-                # Сообщение о результате
                 if conflict_count > 0:
-                    msg = f"Синхронизировано: {synced_count} заметок\n⚠️ Обнаружено конфликтов: {conflict_count}"
                     self.update_status(f"Синхронизация: {synced_count} заметок, {conflict_count} конфликтов")
                     QMessageBox.warning(
                         self,
                         "Синхронизация завершена",
-                        msg + "\n\nЗаметки с конфликтами помечены префиксом ⚠️"
+                        f"Синхронизировано: {synced_count} заметок\n⚠️ Обнаружено конфликтов: {conflict_count}\n\nЗаметки с конфликтами помечены префиксом ⚠️"
                     )
                 else:
                     self.update_status(f"Синхронизировано: {synced_count} заметок")
@@ -519,29 +548,23 @@ class NotesApp(QMainWindow):
                         "Синхронизация завершена",
                         f"Успешно синхронизировано {synced_count} заметок"
                     )
-                
-                logger.info("Синхронизация успешна: %d заметок, %d конфликтов", 
-                           synced_count, conflict_count)
+                logger.info("Фоновая синхронизация успешна: %d, %d", synced_count, conflict_count)
             else:
                 self.update_status("Ошибка синхронизации")
-                QMessageBox.critical(
-                    self,
-                    "Ошибка синхронизации",
-                    "Не удалось выполнить синхронизацию.\nПроверьте логи для деталей."
-                )
-                logger.error("Синхронизация не удалась")
-        
-        except Exception as e:
-            logger.error("Ошибка при синхронизации: %s", e)
-            self.update_status("Ошибка синхронизации")
-            QMessageBox.critical(
-                self,
-                "Ошибка",
-                f"Произошла ошибка при синхронизации:\n{e}"
-            )
-        
+                QMessageBox.critical(self, "Ошибка синхронизации", "Не удалось выполнить синхронизацию.\nПроверьте логи для деталей.")
         finally:
+            self._sync_in_progress = False
             self.btn_sync.setEnabled(True)
+            self.btn_sync_settings.setEnabled(True)
+
+    def _on_sync_error(self, error: Exception):
+        """Обработчик ошибок синхронизации (главный поток)."""
+        self.update_status("Ошибка синхронизации")
+        QMessageBox.critical(self, "Ошибка", f"Произошла ошибка при синхронизации:\n{error}")
+        logger.error("Ошибка синхронизации: %s", error)
+        self._sync_in_progress = False
+        self.btn_sync.setEnabled(True)
+        self.btn_sync_settings.setEnabled(True)
 
 
 def main():
