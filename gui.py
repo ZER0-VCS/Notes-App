@@ -705,9 +705,21 @@ class NotesApp(QMainWindow):
                     
                     # Очищаем редактор
                     self.current_note_id = None
+                    
+                    # Блокируем сигналы при очистке
+                    self.title_edit.blockSignals(True)
+                    self.body_edit.blockSignals(True)
+                    self.tags_edit.blockSignals(True)
+                    
                     self.title_edit.clear()
                     self.body_edit.clear()
                     self.tags_edit.clear()
+                    
+                    # Разблокируем сигналы
+                    self.title_edit.blockSignals(False)
+                    self.body_edit.blockSignals(False)
+                    self.tags_edit.blockSignals(False)
+                    
                     self.btn_save.setEnabled(False)
                     self.btn_delete.setEnabled(False)
                     self.has_unsaved_changes = False
@@ -725,14 +737,48 @@ class NotesApp(QMainWindow):
     
     def on_text_changed(self):
         """Обработчик изменения текста в редакторе."""
-        if self.current_note_id:
-            self.has_unsaved_changes = True
-            self.btn_save.setEnabled(True)
-            self.update_status("Есть несохраненные изменения")
-            
-            # Перезапускаем таймер автосохранения
-            self.autosave_timer.stop()  # Останавливаем предыдущий таймер
-            self.autosave_timer.start(self.autosave_delay)  # Запускаем новый отсчёт
+        if not self.current_note_id:
+            # Автоматически создаём новую заметку при начале редактирования
+            try:
+                # Блокируем сигналы, чтобы избежать рекурсии
+                self.title_edit.blockSignals(True)
+                self.body_edit.blockSignals(True)
+                self.tags_edit.blockSignals(True)
+                
+                # Создаем новую заметку с текущим содержимым
+                title = self.title_edit.text() or "Новая заметка"
+                body = self.body_edit.toPlainText()
+                tags_text = self.tags_edit.text()
+                tags = [tag.strip() for tag in tags_text.split(",") if tag.strip()]
+                
+                new_note = Note(title=title, body=body, tags=tags)
+                self.store.add_note(new_note)
+                self.current_note_id = new_note.id
+                
+                # Обновляем список
+                self.load_notes_list()
+                
+                # Разблокируем сигналы
+                self.title_edit.blockSignals(False)
+                self.body_edit.blockSignals(False)
+                self.tags_edit.blockSignals(False)
+                
+                # Активируем кнопки
+                self.btn_delete.setEnabled(True)
+                
+                logger.info("Автоматически создана новая заметка: %s", new_note.id[:8])
+                self.update_status("Создана новая заметка")
+            except Exception as e:
+                logger.error("Ошибка при автоматическом создании заметки: %s", e)
+                return
+        
+        self.has_unsaved_changes = True
+        self.btn_save.setEnabled(True)
+        self.update_status("Есть несохраненные изменения")
+        
+        # Перезапускаем таймер автосохранения
+        self.autosave_timer.stop()  # Останавливаем предыдущий таймер
+        self.autosave_timer.start(self.autosave_delay)  # Запускаем новый отсчёт
     
     def update_status(self, message):
         """Обновление статусного сообщения."""
