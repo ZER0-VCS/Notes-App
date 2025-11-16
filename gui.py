@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, QTimer, Signal, QObject
 import threading
-from PySide6.QtGui import QFont, QShortcut, QKeySequence
+from PySide6.QtGui import QFont, QShortcut, QKeySequence, QTextCharFormat, QColor, QTextCursor
 from notes import Note, NoteStore
 from sync import SyncManager
 
@@ -362,6 +362,16 @@ class NotesApp(QMainWindow):
                         title = title[:47] + "..."
                     item.setText(title)
             self.search_results_label.setText("")
+            
+            # Убираем подсветку текста в редакторе
+            if self.current_note_id:
+                cursor = self.body_edit.textCursor()
+                cursor.select(QTextCursor.SelectionType.Document)
+                cursor.setCharFormat(QTextCharFormat())
+                cursor.clearSelection()
+                cursor.movePosition(QTextCursor.MoveOperation.Start)
+                self.body_edit.setTextCursor(cursor)
+            
             return
         
         # Получаем все заметки для поиска по телу
@@ -415,6 +425,55 @@ class NotesApp(QMainWindow):
         self.search_box.selectAll()
         logger.info("Фокус установлен на поле поиска")
     
+    def highlight_text_in_body(self, search_text: str):
+        """Подсветка найденного текста в редакторе желтым цветом."""
+        if not search_text or not self.current_note_id:
+            return
+        
+        # Получаем текст документа
+        cursor = self.body_edit.textCursor()
+        document = self.body_edit.document()
+        
+        # Сбрасываем предыдущее форматирование
+        cursor.select(QTextCursor.SelectionType.Document)
+        cursor.setCharFormat(QTextCharFormat())
+        cursor.clearSelection()
+        self.body_edit.setTextCursor(cursor)
+        
+        # Создаём формат для подсветки
+        highlight_format = QTextCharFormat()
+        highlight_format.setBackground(QColor(255, 255, 0))  # Желтый цвет
+        
+        # Ищем и подсвечиваем все вхождения (регистронезависимо)
+        cursor = self.body_edit.textCursor()
+        cursor.movePosition(QTextCursor.MoveOperation.Start)
+        
+        text_lower = self.body_edit.toPlainText().lower()
+        search_lower = search_text.lower()
+        
+        pos = 0
+        first_found = True
+        while True:
+            pos = text_lower.find(search_lower, pos)
+            if pos == -1:
+                break
+            
+            # Перемещаем курсор к найденной позиции
+            cursor.setPosition(pos)
+            cursor.setPosition(pos + len(search_text), QTextCursor.MoveMode.KeepAnchor)
+            cursor.mergeCharFormat(highlight_format)
+            
+            # Прокручиваем к первому найденному вхождению
+            if first_found:
+                self.body_edit.setTextCursor(cursor)
+                first_found = False
+            
+            pos += len(search_text)
+        
+        # Возвращаем курсор в начало
+        cursor.movePosition(QTextCursor.MoveOperation.Start)
+        self.body_edit.setTextCursor(cursor)
+    
     def on_note_selected(self, item):
         """Обработчик выбора заметки из списка."""
         # Проверка несохраненных изменений
@@ -467,6 +526,11 @@ class NotesApp(QMainWindow):
             
             self.has_unsaved_changes = False
             self.update_status(f"Заметка загружена: {note.title}")
+            
+            # Применяем подсветку текста, если есть активный поиск
+            search_text = self.search_box.text().strip()
+            if search_text:
+                self.highlight_text_in_body(search_text)
     
     def create_new_note(self):
         """Создание новой заметки."""
