@@ -343,7 +343,7 @@ class NotesApp(QMainWindow):
         
         # Подробная информация о текущей заметке
         self.note_info_label = QLabel("")
-        self.note_info_label.setStyleSheet("color: #666666; font-size: 10px; padding: 5px;")
+        self.note_info_label.setStyleSheet("color: #666666; font-size: 11px; padding: 5px;")
         self.note_info_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         right_layout.addWidget(self.note_info_label)
         
@@ -1003,11 +1003,11 @@ class NotesApp(QMainWindow):
         
         # Обновляем счётчик результатов
         if visible_count == 0:
-            self.search_results_label.setText(f"❌ Ничего не найдено")
+            self.search_results_label.setText(f"Ничего не найдено")
         elif visible_count == 1:
-            self.search_results_label.setText(f"✅ Найдена 1 заметка")
+            self.search_results_label.setText(f"Найдена 1 заметка")
         else:
-            self.search_results_label.setText(f"✅ Найдено заметок: {visible_count}")
+            self.search_results_label.setText(f"Найдено заметок: {visible_count}")
     
     def focus_search(self):
         """Установка фокуса на поле поиска (Ctrl+F)."""
@@ -1298,7 +1298,7 @@ class NotesApp(QMainWindow):
         except Exception as e:
             logger.error("Ошибка при автосохранении заметки: %s", e)
             # Не показываем модальный диалог для автосохранения, только логируем
-            self.update_status("⚠️ Ошибка автосохранения")
+            self.update_status("Ошибка автосохранения")
     
     def delete_current_note(self):
         """Удаление текущей заметки."""
@@ -1633,7 +1633,7 @@ class NotesApp(QMainWindow):
                         QMessageBox.warning(
                             self,
                             "Синхронизация завершена",
-                            f"Синхронизировано: {synced_count} заметок\n⚠️ Обнаружено конфликтов: {conflict_count}\n\nЗаметки с конфликтами помечены префиксом ⚠️"
+                            f"Синхронизировано: {synced_count} заметок\nОбнаружено конфликтов: {conflict_count}"
                         )
                     else:
                         self.update_status(f"Синхронизировано: {synced_count} заметок")
@@ -1647,15 +1647,15 @@ class NotesApp(QMainWindow):
                     logger.info("Автосинхронизация успешна: %d заметок, %d конфликтов", synced_count, conflict_count)
                     
                     if conflict_count > 0:
-                        self.update_status(f"⚠️ Автосинхронизация: {synced_count} заметок, {conflict_count} конфликтов")
+                        self.update_status(f"Автосинхронизация: {synced_count} заметок, {conflict_count} конфликтов")
                     else:
-                        self.update_status(f"✅ Автосинхронизация: {synced_count} заметок")
+                        self.update_status(f"Автосинхронизация: {synced_count} заметок")
             else:
                 if is_manual:
                     self.update_status("Ошибка синхронизации")
                     QMessageBox.critical(self, "Ошибка синхронизации", "Не удалось выполнить синхронизацию.\nПроверьте логи для деталей.")
                 else:
-                    self.update_status("⚠️ Ошибка автосинхронизации")
+                    self.update_status("Ошибка автосинхронизации")
                 logger.error("Синхронизация не удалась")
         except Exception as e:
             logger.error("Ошибка в обработчике завершения синхронизации: %s", e)
