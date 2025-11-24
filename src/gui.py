@@ -327,27 +327,26 @@ class NotesApp(QMainWindow):
         
         right_layout.addLayout(buttons_layout)
         
-        # Статусная метка и статистика внизу
-        status_bar_layout = QHBoxLayout()
-        
+        # Строка статуса: информация о загрузке/синхронизации
         self.status_label = QLabel("")
         self.status_label.setStyleSheet("color: #666666; font-size: 11px; padding: 5px;")
         self.status_label.setWordWrap(True)
-        status_bar_layout.addWidget(self.status_label, stretch=1)
+        right_layout.addWidget(self.status_label)
         
-        # Счетчик статистики
-        self.statistics_label = QLabel("")
-        self.statistics_label.setStyleSheet("color: #666666; font-size: 11px; padding: 5px;")
-        self.statistics_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        status_bar_layout.addWidget(self.statistics_label)
+        # Нижняя строка: информация о заметке и статистика
+        bottom_status_layout = QHBoxLayout()
         
-        # Подробная информация о текущей заметке
         self.note_info_label = QLabel("")
         self.note_info_label.setStyleSheet("color: #666666; font-size: 11px; padding: 5px;")
         self.note_info_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        right_layout.addWidget(self.note_info_label)
+        bottom_status_layout.addWidget(self.note_info_label, stretch=1)
         
-        right_layout.addLayout(status_bar_layout)
+        self.statistics_label = QLabel("")
+        self.statistics_label.setStyleSheet("color: #666666; font-size: 11px; padding: 5px;")
+        self.statistics_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        bottom_status_layout.addWidget(self.statistics_label)
+        
+        right_layout.addLayout(bottom_status_layout)
         
         splitter.addWidget(right_panel)
         
