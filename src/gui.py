@@ -132,6 +132,7 @@ class NotesApp(QMainWindow):
         
         # Поле поиска
         self.search_box = QLineEdit()
+        self.search_box.setObjectName("search_box")
         self.search_box.setPlaceholderText("Поиск по заголовку и тексту...")
         self.search_box.textChanged.connect(self.filter_notes)
         self.search_box.setClearButtonEnabled(True)  # Кнопка очистки
@@ -139,13 +140,13 @@ class NotesApp(QMainWindow):
         
         # Метка с количеством результатов
         self.search_results_label = QLabel("")
-        self.search_results_label.setStyleSheet("color: #666666; font-size: 10px; padding: 2px;")
+        self.search_results_label.setObjectName("search_results")
         left_layout.addWidget(self.search_results_label)
         
         # Dropdown для сортировки
         sort_layout = QHBoxLayout()
         sort_label = QLabel("Сортировка:")
-        sort_label.setStyleSheet("color: #666666; font-size: 11px;")
+        sort_label.setObjectName("sort_label")
         sort_layout.addWidget(sort_label)
         
         self.sort_combo = QComboBox()
@@ -172,19 +173,7 @@ class NotesApp(QMainWindow):
         # Кнопка "Создать новую заметку"
         self.btn_new = QPushButton("Создать заметку")
         self.btn_new.clicked.connect(self.create_new_note)
-        self.btn_new.setStyleSheet("""
-            QPushButton {
-                background-color: #4CAF50;
-                color: white;
-                border: none;
-                padding: 10px;
-                font-size: 14px;
-                border-radius: 5px;
-            }
-            QPushButton:hover {
-                background-color: #45a049;
-            }
-        """)
+        self.btn_new.setObjectName("btn_new")
         left_layout.addWidget(self.btn_new)
         
         splitter.addWidget(left_panel)
@@ -235,67 +224,19 @@ class NotesApp(QMainWindow):
         self.btn_save = QPushButton("Сохранить")
         self.btn_save.clicked.connect(self.save_current_note)
         self.btn_save.setEnabled(False)
-        self.btn_save.setStyleSheet("""
-            QPushButton {
-                background-color: #2196F3;
-                color: white;
-                border: none;
-                padding: 10px 20px;
-                font-size: 14px;
-                border-radius: 5px;
-            }
-            QPushButton:hover {
-                background-color: #0b7dda;
-            }
-            QPushButton:disabled {
-                background-color: #cccccc;
-                color: #666666;
-            }
-        """)
+        self.btn_save.setObjectName("btn_save")
         buttons_layout.addWidget(self.btn_save)
         
         self.btn_pin = QPushButton("Закрепить")
         self.btn_pin.clicked.connect(self.toggle_pin)
         self.btn_pin.setEnabled(False)
-        self.btn_pin.setStyleSheet("""
-            QPushButton {
-                background-color: #FF9800;
-                color: white;
-                border: none;
-                padding: 10px 20px;
-                font-size: 14px;
-                border-radius: 5px;
-            }
-            QPushButton:hover {
-                background-color: #FB8C00;
-            }
-            QPushButton:disabled {
-                background-color: #cccccc;
-                color: #666666;
-            }
-        """)
+        self.btn_pin.setObjectName("btn_pin")
         buttons_layout.addWidget(self.btn_pin)
         
         self.btn_delete = QPushButton("Удалить")
         self.btn_delete.clicked.connect(self.delete_current_note)
         self.btn_delete.setEnabled(False)
-        self.btn_delete.setStyleSheet("""
-            QPushButton {
-                background-color: #f44336;
-                color: white;
-                border: none;
-                padding: 10px 20px;
-                font-size: 14px;
-                border-radius: 5px;
-            }
-            QPushButton:hover {
-                background-color: #da190b;
-            }
-            QPushButton:disabled {
-                background-color: #cccccc;
-                color: #666666;
-            }
-        """)
+        self.btn_delete.setObjectName("btn_delete")
         buttons_layout.addWidget(self.btn_delete)
         
         buttons_layout.addStretch()
@@ -303,19 +244,7 @@ class NotesApp(QMainWindow):
         # Кнопка синхронизации
         self.btn_sync = QPushButton("Синхронизировать")
         self.btn_sync.clicked.connect(self.sync_notes)
-        self.btn_sync.setStyleSheet("""
-            QPushButton {
-                background-color: #FF9800;
-                color: white;
-                border: none;
-                padding: 10px 20px;
-                font-size: 14px;
-                border-radius: 5px;
-            }
-            QPushButton:hover {
-                background-color: #F57C00;
-            }
-        """)
+        self.btn_sync.setObjectName("btn_sync")
         buttons_layout.addWidget(self.btn_sync)
 
         # Кнопка настроек синхронизации (смена папки) - всегда доступна
@@ -329,7 +258,7 @@ class NotesApp(QMainWindow):
         
         # Строка статуса: информация о загрузке/синхронизации
         self.status_label = QLabel("")
-        self.status_label.setStyleSheet("color: #666666; font-size: 11px; padding: 5px;")
+        self.status_label.setObjectName("status_label")
         self.status_label.setWordWrap(True)
         right_layout.addWidget(self.status_label)
         
@@ -337,12 +266,12 @@ class NotesApp(QMainWindow):
         bottom_status_layout = QHBoxLayout()
         
         self.note_info_label = QLabel("")
-        self.note_info_label.setStyleSheet("color: #666666; font-size: 11px; padding: 5px;")
+        self.note_info_label.setObjectName("note_info_label")
         self.note_info_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         bottom_status_layout.addWidget(self.note_info_label, stretch=1)
         
         self.statistics_label = QLabel("")
-        self.statistics_label.setStyleSheet("color: #666666; font-size: 11px; padding: 5px;")
+        self.statistics_label.setObjectName("statistics_label")
         self.statistics_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         bottom_status_layout.addWidget(self.statistics_label)
         
@@ -716,6 +645,8 @@ class NotesApp(QMainWindow):
                     background-color: {theme.background};
                     color: {theme.text};
                 }}
+                
+                /* Поля ввода */
                 QLineEdit, QTextEdit {{
                     background-color: {theme.input_background};
                     color: {theme.input_text};
@@ -723,21 +654,124 @@ class NotesApp(QMainWindow):
                     padding: 5px;
                     border-radius: 3px;
                 }}
+                QLineEdit:focus, QTextEdit:focus {{
+                    border: 2px solid {theme.button_background};
+                }}
+                
+                /* Список заметок */
                 QListWidget {{
                     background-color: {theme.list_background};
                     color: {theme.list_text};
                     border: 1px solid {theme.input_border};
+                    border-radius: 3px;
                 }}
                 QListWidget::item:selected {{
                     background-color: {theme.list_selected};
-                    color: {theme.list_text};
+                    color: white;
                 }}
                 QListWidget::item:hover {{
                     background-color: {theme.list_hover};
                 }}
+                
+                /* Обычные кнопки */
+                QPushButton {{
+                    background-color: {theme.button_background};
+                    color: {theme.button_text};
+                    border: none;
+                    padding: 10px 20px;
+                    font-size: 14px;
+                    border-radius: 5px;
+                }}
+                QPushButton:hover {{
+                    background-color: {theme.button_hover};
+                }}
+                QPushButton:disabled {{
+                    background-color: {theme.button_disabled};
+                    color: #666666;
+                }}
+                
+                /* Кнопка создания заметки */
+                QPushButton#btn_new {{
+                    background-color: #4CAF50;
+                    padding: 10px;
+                }}
+                QPushButton#btn_new:hover {{
+                    background-color: #45a049;
+                }}
+                
+                /* Кнопка закрепления */
+                QPushButton#btn_pin {{
+                    background-color: #FF9800;
+                }}
+                QPushButton#btn_pin:hover {{
+                    background-color: #FB8C00;
+                }}
+                
+                /* Кнопка удаления */
+                QPushButton#btn_delete {{
+                    background-color: {theme.delete_button_background};
+                }}
+                QPushButton#btn_delete:hover {{
+                    background-color: {theme.delete_button_hover};
+                }}
+                
+                /* Кнопка синхронизации */
+                QPushButton#btn_sync {{
+                    background-color: #FF9800;
+                }}
+                QPushButton#btn_sync:hover {{
+                    background-color: #F57C00;
+                }}
+                
+                /* Метки */
                 QLabel {{
                     color: {theme.text};
                     background-color: transparent;
+                }}
+                
+                /* Статус-бары и информационные метки */
+                QLabel#status_label, QLabel#note_info_label, QLabel#statistics_label {{
+                    color: {theme.status_text};
+                    font-size: 11px;
+                    padding: 5px;
+                }}
+                
+                /* Метка результатов поиска и сортировки */
+                QLabel#search_results, QLabel#sort_label {{
+                    color: {theme.status_text};
+                    font-size: 11px;
+                }}
+                
+                /* Поле поиска */
+                QLineEdit#search_box {{
+                    background-color: {theme.search_background};
+                    border: 2px solid {theme.search_border};
+                    padding: 8px;
+                    border-radius: 5px;
+                }}
+                QLineEdit#search_box:focus {{
+                    border: 2px solid {theme.button_background};
+                }}
+                
+                /* Комбобокс */
+                QComboBox {{
+                    background-color: {theme.input_background};
+                    color: {theme.input_text};
+                    border: 1px solid {theme.input_border};
+                    padding: 5px;
+                    border-radius: 3px;
+                }}
+                QComboBox:hover {{
+                    border: 1px solid {theme.button_background};
+                }}
+                QComboBox::drop-down {{
+                    border: none;
+                }}
+                QComboBox QAbstractItemView {{
+                    background-color: {theme.input_background};
+                    color: {theme.input_text};
+                    selection-background-color: {theme.list_selected};
+                    selection-color: white;
                 }}
             """)
             
