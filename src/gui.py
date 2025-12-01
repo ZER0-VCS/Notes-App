@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, QTimer, Signal, QObject
 import threading
-from PySide6.QtGui import QFont, QShortcut, QKeySequence, QTextCharFormat, QColor, QTextCursor, QPalette
+from PySide6.QtGui import QFont, QShortcut, QKeySequence, QTextCharFormat, QColor, QTextCursor, QPalette, QBrush
 
 try:
     from notes import Note, NoteStore
@@ -217,6 +217,9 @@ class NotesApp(QMainWindow):
         self.body_edit.setLineWrapMode(QTextEdit.WidgetWidth)
         self.body_edit.textChanged.connect(self.on_text_changed)
         right_layout.addWidget(self.body_edit)
+        
+        # Сохраняем ссылку на активные подсветки поиска
+        self.search_highlights = []
         
         # Панель кнопок
         buttons_layout = QHBoxLayout()
@@ -782,9 +785,36 @@ class NotesApp(QMainWindow):
             self.search_box.setFont(search_font)
             self.tags_edit.setFont(tags_font)
             
+            # Настраиваем палитру выделения для текстовых полей
+            self.setup_selection_palette(theme)
+            
             logger.info(f"Тема применена в реальном времени: {theme_name}")
         except Exception as e:
             logger.error(f"Ошибка при применении темы: {e}")
+    
+    def setup_selection_palette(self, theme):
+        """Настройка цветов выделения текста (как в VS Code/Word).
+        
+        Args:
+            theme: Объект темы с цветовой схемой
+        """
+        # Создаем палитру для ручного выделения текста
+        for widget in [self.title_edit, self.tags_edit, self.body_edit]:
+            palette = widget.palette()
+            
+            # Цвет фона выделенного текста (как в VS Code)
+            palette.setColor(QPalette.ColorRole.Highlight, QColor(theme.text_selection_background))
+            
+            # Цвет текста при выделении (контрастный)
+            palette.setColor(QPalette.ColorRole.HighlightedText, QColor(theme.text_selection_foreground))
+            
+            # Цвет неактивного выделения (когда фокус не на виджете)
+            palette.setColor(QPalette.ColorGroup.Inactive, QPalette.ColorRole.Highlight, 
+                           QColor(theme.text_selection_inactive))
+            palette.setColor(QPalette.ColorGroup.Inactive, QPalette.ColorRole.HighlightedText, 
+                           QColor(theme.text_selection_foreground))
+            
+            widget.setPalette(palette)
     
     def change_theme(self, theme_name: str):
         """
@@ -1049,7 +1079,7 @@ class NotesApp(QMainWindow):
         logger.info("Фокус установлен на поле поиска")
     
     def highlight_text_in_field(self, text_edit, search_text: str, scroll_to_first: bool = False):
-        """Подсветка найденного текста в текстовом поле системным цветом выделения.
+        """Подсветка найденного текста с использованием ExtraSelections (как в VS Code).
         
         Args:
             text_edit: QTextEdit или QLineEdit для подсветки
@@ -1057,6 +1087,8 @@ class NotesApp(QMainWindow):
             scroll_to_first: Прокручивать к первому совпадению
         """
         if not search_text:
+            # Очищаем подсветку если поиск пустой
+            self.clear_search_highlights(text_edit)
             return
         
         # Получаем текст в зависимости от типа поля
@@ -1077,56 +1109,71 @@ class NotesApp(QMainWindow):
             if search_lower in text_lower:
                 # Находим позицию первого совпадения
                 pos = text_lower.find(search_lower)
-                # Выделяем текст
+                # Выделяем текст (использует палитру Highlight)
                 text_edit.setSelection(pos, len(search_text))
         else:
-            # Для QTextEdit используем QTextCursor с системным цветом выделения
-            cursor = text_edit.textCursor()
+            # Для QTextEdit используем ExtraSelections (не влияет на ручное выделение)
+            self.clear_search_highlights(text_edit)
             
-            # Сбрасываем предыдущее форматирование
-            cursor.select(QTextCursor.SelectionType.Document)
-            cursor.setCharFormat(QTextCharFormat())
-            cursor.clearSelection()
-            text_edit.setTextCursor(cursor)
+            # Получаем цвет выделения поиска из темы (отличается от ручного выделения)
+            search_bg_color = QColor(self.current_theme.search_highlight)
+            search_fg_color = QColor(self.current_theme.search_highlight_text)
             
-            # Получаем цвет выделения из текущей темы
-            highlight_color = QColor(self.current_theme.search_highlight)
-            highlight_text_color = QColor(self.current_theme.search_highlight_text)
+            # Создаём формат для подсветки поиска
+            search_format = QTextCharFormat()
+            search_format.setBackground(QBrush(search_bg_color))
+            search_format.setForeground(QBrush(search_fg_color))
             
-            # Создаём формат для подсветки
-            highlight_format = QTextCharFormat()
-            highlight_format.setBackground(highlight_color)
-            highlight_format.setForeground(highlight_text_color)
-            
-            # Ищем и подсвечиваем все вхождения (регистронезависимо)
-            cursor = text_edit.textCursor()
+            # Ищем все вхождения (регистронезависимо)
+            extra_selections = []
+            cursor = QTextCursor(text_edit.document())
             cursor.movePosition(QTextCursor.MoveOperation.Start)
             
             text_lower = text.lower()
             search_lower = search_text.lower()
             
             pos = 0
-            first_found = True
+            first_cursor = None
             while True:
                 pos = text_lower.find(search_lower, pos)
                 if pos == -1:
                     break
                 
-                # Перемещаем курсор к найденной позиции
-                cursor.setPosition(pos)
-                cursor.setPosition(pos + len(search_text), QTextCursor.MoveMode.KeepAnchor)
-                cursor.mergeCharFormat(highlight_format)
+                # Создаём выделение для этого вхождения
+                selection_cursor = QTextCursor(text_edit.document())
+                selection_cursor.setPosition(pos)
+                selection_cursor.setPosition(pos + len(search_text), QTextCursor.MoveMode.KeepAnchor)
                 
-                # Прокручиваем к первому найденному вхождению
-                if scroll_to_first and first_found:
-                    text_edit.setTextCursor(cursor)
-                    first_found = False
+                # Создаём ExtraSelection
+                selection = QTextEdit.ExtraSelection()
+                selection.cursor = selection_cursor
+                selection.format = search_format
+                extra_selections.append(selection)
+                
+                # Запоминаем первое вхождение для прокрутки
+                if first_cursor is None:
+                    first_cursor = selection_cursor
                 
                 pos += len(search_text)
             
-            # Возвращаем курсор в начало
-            cursor.movePosition(QTextCursor.MoveOperation.Start)
-            text_edit.setTextCursor(cursor)
+            # Применяем все подсветки поиска (не затрагивает ручное выделение)
+            text_edit.setExtraSelections(extra_selections)
+            self.search_highlights = extra_selections
+            
+            # Прокручиваем к первому найденному вхождению
+            if scroll_to_first and first_cursor:
+                text_edit.setTextCursor(first_cursor)
+    
+    def clear_search_highlights(self, text_edit):
+        """Очистка подсветки поиска без влияния на ручное выделение.
+        
+        Args:
+            text_edit: QTextEdit для очистки
+        """
+        from PySide6.QtWidgets import QTextEdit
+        if isinstance(text_edit, QTextEdit):
+            text_edit.setExtraSelections([])
+            self.search_highlights = []
     
     def on_note_selected(self, item):
         """Обработчик выбора заметки из списка."""

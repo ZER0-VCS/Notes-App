@@ -40,9 +40,14 @@ class Theme:
     list_selected: str
     list_hover: str
     
-    # Цвет выделения при поиске
+    # Цвет выделения при поиске (ExtraSelections)
     search_highlight: str
     search_highlight_text: str
+    
+    # Цвета для ручного выделения текста (QPalette.Highlight)
+    text_selection_background: str  # Фон выделенного текста
+    text_selection_foreground: str  # Цвет выделенного текста
+    text_selection_inactive: str    # Фон неактивного выделения
     
     # Цвета для статус-бара
     status_text: str
@@ -78,9 +83,14 @@ class ThemeManager:
         list_selected="#0078D4",
         list_hover="#E5F3FF",
         
-        # Жёлтый цвет выделения при поиске
+        # Жёлтый цвет выделения при поиске (ExtraSelections)
         search_highlight="#FFEB3B",
         search_highlight_text="#000000",
+        
+        # Цвета ручного выделения (как в VS Code Light)
+        text_selection_background="#ADD6FF",  # Светло-синий
+        text_selection_foreground="#000000",  # Чёрный текст
+        text_selection_inactive="#E4E4E4",    # Серый для неактивного
         
         status_text="#666666",
         
@@ -111,9 +121,14 @@ class ThemeManager:
         list_selected="#094771",
         list_hover="#2A2D2E",
         
-        # Синий/фиолетовый цвет выделения при поиске
+        # Синий/фиолетовый цвет выделения при поиске (ExtraSelections)
         search_highlight="#5294E2",
         search_highlight_text="#FFFFFF",
+        
+        # Цвета ручного выделения (как в VS Code Dark)
+        text_selection_background="#264F78",  # Тёмно-синий
+        text_selection_foreground="#FFFFFF",  # Белый текст
+        text_selection_inactive="#3A3D41",    # Тёмно-серый для неактивного
         
         status_text="#969696",
         
@@ -144,9 +159,14 @@ class ThemeManager:
         list_selected="#4682B4",
         list_hover="#D6E9FF",
         
-        # Жёлтый цвет выделения при поиске
+        # Жёлтый цвет выделения при поиске (ExtraSelections)
         search_highlight="#FFEB3B",
         search_highlight_text="#000000",
+        
+        # Цвета ручного выделения (голубой тон)
+        text_selection_background="#B0D4F1",  # Светло-голубой
+        text_selection_foreground="#000000",  # Чёрный текст
+        text_selection_inactive="#D6E9FF",    # Светло-голубой для неактивного
         
         status_text="#4682B4",
         
@@ -177,9 +197,14 @@ class ThemeManager:
         list_selected="#2E7D32",
         list_hover="#C8E6C9",
         
-        # Жёлтый цвет выделения при поиске
+        # Жёлтый цвет выделения при поиске (ExtraSelections)
         search_highlight="#FFEB3B",
         search_highlight_text="#000000",
+        
+        # Цвета ручного выделения (зеленоватый тон)
+        text_selection_background="#A5D6A7",  # Светло-зелёный
+        text_selection_foreground="#000000",  # Чёрный текст
+        text_selection_inactive="#C8E6C9",    # Светло-зелёный для неактивного
         
         status_text="#2E7D32",
         
