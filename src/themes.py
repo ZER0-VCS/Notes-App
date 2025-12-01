@@ -111,9 +111,9 @@ class ThemeManager:
         list_selected="#094771",
         list_hover="#2A2D2E",
         
-        # Системный цвет выделения (синий на Windows)
-        search_highlight="palette(highlight)",
-        search_highlight_text="palette(highlighted-text)",
+        # Синий/фиолетовый цвет выделения при поиске
+        search_highlight="#5294E2",
+        search_highlight_text="#FFFFFF",
         
         status_text="#969696",
         
@@ -336,14 +336,13 @@ class ThemeManager:
             theme: Тема оформления (если None, используется текущая)
         
         Returns:
-            QColor: Цвет выделения (системный highlight color)
+            QColor: Цвет выделения из темы
         """
         if theme is None:
             theme = self.current_theme
         
-        # Используем системную палитру для получения цвета выделения
-        palette = QPalette()
-        return palette.color(QPalette.ColorRole.Highlight)
+        # Возвращаем цвет из темы, а не системный
+        return QColor(theme.search_highlight)
 
 
 # Глобальный экземпляр менеджера тем
