@@ -252,7 +252,11 @@ class NotesApp(QMainWindow):
 
         # Кнопка настроек синхронизации (смена папки) - всегда доступна
         self.btn_sync_settings = QPushButton("📁")
+        self.btn_sync_settings.setObjectName("btn_sync_settings")
         self.btn_sync_settings.setFixedWidth(36)
+        # Устанавливаем шрифт с поддержкой эмодзи (Segoe UI Emoji для Windows)
+        emoji_font = QFont("Segoe UI Emoji", 14)
+        self.btn_sync_settings.setFont(emoji_font)
         self.btn_sync_settings.clicked.connect(self.setup_sync_path)
         self.btn_sync_settings.setToolTip("Изменить папку синхронизации")
         buttons_layout.addWidget(self.btn_sync_settings)
@@ -724,6 +728,16 @@ class NotesApp(QMainWindow):
                 }}
                 QPushButton#btn_sync:hover {{
                     background-color: #F57C00;
+                }}
+                
+                /* Кнопка настроек синхронизации (с эмодзи папки) */
+                QPushButton#btn_sync_settings {{
+                    background-color: {theme.button_background};
+                    font-size: 16px;
+                    padding: 8px;
+                }}
+                QPushButton#btn_sync_settings:hover {{
+                    background-color: {theme.button_hover};
                 }}
                 
                 /* Метки */
